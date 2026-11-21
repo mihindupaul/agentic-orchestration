@@ -17,6 +17,16 @@ the cell: the deck file (where each bay, well and station is), labware operation
 scanner", and a small service that owns the hardware and runs one operation at a time. Rack jobs are not in the
 controller: they are Orca workflows built from its operations (stages 2 and 3).
 
+## Built on Orca
+The workflow layer is [Orca](https://github.com/Cheshire-Labs/orca) by [Cheshire Labs](https://cheshirelabs.io), a lab
+automation scheduler and workflow orchestrator, with its driver layer
+[cheshire-drivers](https://github.com/Cheshire-Labs/cheshire-drivers). Orca is used unmodified: the plug-in in
+`src/orca_vialstation` presents the workcell to Orca as an arm (a transporter) and three instruments (devices), and
+Orca workflows run against the simulator, live, through the controller. Two workflows running together kept every
+instrument busy at once: 48 vials scanned, weighed or heated in 14.5 minutes, with all the scanning and weighing
+done while the heater worked. See [`docs/orca-integration.md`](docs/orca-integration.md) for how it fits together
+and what was learned along the way.
+
 ## Quick start
 ```
 python3 -m venv .venv && source .venv/bin/activate   # Python >= 3.10
@@ -37,7 +47,7 @@ Tests cover the simulator, the deck file against the simulated cell, labware ope
 |---|---|
 | `workcell_sim` | tested |
 | `vialctl` (deck, operations, service, API) | tested against the simulator |
-| `orca_vialstation` (device, drivers, deployment package) | tested inside Orca 2.3.0: a workflow runs in pure simulation and live through vialctl to the simulator (`make orca-test`) |
+| `orca_vialstation` (drivers, devices, two deployment packages) | tested inside Orca 2.3.0 (`make orca-test`); workflows run in pure simulation and live through vialctl to the simulator |
 | `ros2/` | scene tested on the Mac; runs in the container (`ros2/docker`) or the UTM VM (`ros2/vm`) |
 
 ## Demo stages
@@ -46,6 +56,18 @@ driver, hand-built Orca workflows, then agentic workflows (an AI agent that buil
 See [`demos/`](demos/) for the stage plan and runnable demos for each stage.
 
 See `docs/architecture.md`, `docs/orca-integration.md`, `docs/assumptions.md` and `docs/provenance.md`.
+
+## Acknowledgements
+Thanks to [Cheshire Labs](https://cheshirelabs.io) for [Orca](https://github.com/Cheshire-Labs/orca) and
+[cheshire-drivers](https://github.com/Cheshire-Labs/cheshire-drivers): their reservation-based scheduling and clear
+driver interfaces made it possible to orchestrate this workcell without changing a line of Orca, and their source and
+examples were the guide for the plug-in. Orca builds on the work of the [PyLabRobot](https://github.com/PyLabRobot/pylabrobot)
+community, which deserves credit too. The 3D view uses [ROS 2](https://docs.ros.org) and RViz, and the browser view
+uses [noVNC](https://github.com/novnc/noVNC).
+
+Orca and cheshire-drivers are source-available under the Server Side Public License (SSPL-1.0). This repository uses
+them as dependencies only and includes none of their code.
+
 ## Disclaimer
 Independent, educational project. The workcell is an imaginary design made up for this project: it does not
 represent any real instrument, and its layout, geometry, protocols, timings and behaviour are all invented (see
@@ -55,5 +77,5 @@ It is a demonstration, not a real or professional-grade system: it has no safety
 connected to real hardware or used for any safety-critical purpose.
 Licensed under the MIT License, see [LICENSE](LICENSE).
 
-DOBOT, Orca and other product names are used only to describe compatibility. This is an independent educational
-project, not affiliated with or endorsed by their owners.
+DOBOT and other product names are used only to describe compatibility. This is an independent educational project,
+not affiliated with or endorsed by Cheshire Labs, DOBOT or any other company named here.
