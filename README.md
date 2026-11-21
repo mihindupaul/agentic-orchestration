@@ -37,8 +37,7 @@ Tests cover the simulator, the deck file against the simulated cell, labware ope
 |---|---|
 | `workcell_sim` | tested |
 | `vialctl` (deck, operations, service, API) | tested against the simulator |
-| `orca_vialstation.station_core` | tested |
-| `orca_vialstation.driver/factory/topology_example` | written from Orca's published sources, **never run against Orca** |
+| `orca_vialstation` (device, drivers, deployment package) | tested inside Orca 2.3.0: a workflow runs in pure simulation and live through vialctl to the simulator (`make orca-test`) |
 | `ros2/` | scene tested on the Mac; runs in the container (`ros2/docker`) or the UTM VM (`ros2/vm`) |
 
 ## Demo stages

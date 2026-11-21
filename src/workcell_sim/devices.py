@@ -52,7 +52,8 @@ class Balance:
 
 
 class Scanner:
-    """2D-code reader looking up into the well from below."""
+    """2D-code reader looking up into its well from below. Reads a vial set down in the well, or held down in
+    it by the gripper."""
 
     def __init__(self, world, clock, timing, faults, arm):
         self.world, self.clock, self.timing, self.faults, self.arm = world, clock, timing, faults, arm
@@ -61,19 +62,19 @@ class Scanner:
     async def handle(self, line: str) -> str:
         cmd = line.strip().upper()
         if cmd == "STATUS":
-            docked = self.world.docked(self.arm.pose, "scanner")
-            return f"OK,{'BUSY' if self.busy else 'IDLE'},{'VIAL' if docked else 'EMPTY'}"
+            present = self.world.vial_at("scanner", self.arm.pose) is not None
+            return f"OK,{'BUSY' if self.busy else 'IDLE'},{'VIAL' if present else 'EMPTY'}"
         if cmd != "TRIG":
             return "ERR,UNKNOWN_COMMAND"
         if self.busy:
             return "ERR,BUSY"
-        if not self.world.docked(self.arm.pose, "scanner"):
+        vial = self.world.vial_at("scanner", self.arm.pose)
+        if vial is None:
             return "ERR,NO_VIAL"
         self.busy = True
         try:
             await self.clock.sleep(self.timing.scan_s)
-            vial = self.world.held
-            if vial is None or not self.world.docked(self.arm.pose, "scanner"):
+            if self.world.vial_at("scanner", self.arm.pose) is not vial:
                 return "ERR,VIAL_LOST"
             if self.faults.consume("scanner_noread") or vial.code_quality < 0.5:
                 self.world.log("scan", vial=vial.vid, result="noread")
@@ -85,10 +86,11 @@ class Scanner:
 
 
 class Heater:
-    """Heated well. The docked vial sits in a block that is driven toward a set temperature.
+    """Heated well. A vial set down in the well (or held down in it by the gripper) sits in a block that
+    is driven toward a set temperature. Setting it down frees the arm while the vial heats.
 
     STATUS            -> OK,<OFF|HEATING|STABLE>,<VIAL|EMPTY>
-    SET,<celsius>     -> OK,<target>        (25-100 C, needs a docked vial; ERR,RANGE / ERR,NO_VIAL)
+    SET,<celsius>     -> OK,<target>        (25-100 C, needs a vial in the well; ERR,RANGE / ERR,NO_VIAL)
     OFF               -> OK,OFF             (cools back toward ambient)
     TEMP              -> T,<current>,<target>,<state>   (target is ambient when off)
 
@@ -135,9 +137,12 @@ class Heater:
                 self._in_band_s += dt
             else:
                 self._in_band_s = 0.0
-        vial = self.world.held
-        if vial is not None and self.world.docked(self.arm.pose, "heater"):
+        vial = self.vial()
+        if vial is not None:
             vial.peak_c = round(max(vial.peak_c or self.celsius, self.celsius), 2)
+
+    def vial(self):
+        return self.world.vial_at("heater", self.arm.pose)
 
     def _set(self, target: float) -> None:
         sp = self.spec
@@ -156,8 +161,7 @@ class Heater:
         cmd = cmd.upper()
         self.update()
         if cmd == "STATUS":
-            docked = self.world.docked(self.arm.pose, "heater")
-            return f"OK,{self.state},{'VIAL' if docked else 'EMPTY'}"
+            return f"OK,{self.state},{'VIAL' if self.vial() is not None else 'EMPTY'}"
         if cmd == "TEMP":
             target = self.spec.ambient_c if self.target is None else self.target
             return f"T,{self.celsius:.1f},{target:.1f},{self.state}"
@@ -173,7 +177,7 @@ class Heater:
             return "ERR,BAD_VALUE"
         if not self.spec.min_c <= target <= self.spec.max_c:
             return "ERR,RANGE"
-        if not self.world.docked(self.arm.pose, "heater"):
+        if self.vial() is None:
             return "ERR,NO_VIAL"
         self._set(target)
         self.world.log("heater", state="set", target=target)

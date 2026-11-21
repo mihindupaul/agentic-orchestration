@@ -17,8 +17,8 @@
     "8": {"centre": [150.0, 490.0], "rack_type": "sbs96", "col_dir": [-1, 0], "row_dir": [0, 1]}
   },
   "stations": {
-    "scanner": {"xy": [-170.0, 230.0], "use": "dock"},
-    "heater": {"xy": [-340.0, 330.0], "use": "dock"},
+    "scanner": {"xy": [-170.0, 230.0], "use": "set_down"},
+    "heater": {"xy": [-340.0, 330.0], "use": "set_down"},
     "balance": {"xy": [-170.0, 520.0], "use": "set_down"}
   }
 }

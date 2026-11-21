@@ -53,7 +53,7 @@ workcell> move scanner
 workcell> pick 3 A1          # move, lower, grip, check, raise
 workcell> place scanner      # lower into the code reader, keep holding
 workcell> scan
-workcell> place heater       # carry it on to the heated well, keep holding
+workcell> place heater       # set it down in the heated well (the arm is free while it heats)
 workcell> heat 60            # starts heating and returns at once
 workcell> temp               # HEATING ... then STABLE once it has held 60 C for 3 s
 workcell> heater off

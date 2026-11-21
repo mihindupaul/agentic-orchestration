@@ -132,7 +132,7 @@ class WorkcellShell(cmd.Cmd):
         self.say(f"at {t.name}" + (f" ({t.xy[0]:g}, {t.xy[1]:g})" if t.kind == "well" else ""))
 
     def do_down(self, _):
-        """down                Lower to work height here (grip height at racks/balance, dock height in wells)."""
+        """down                Lower to work height here."""
         self.do(self.cell.down())
         self.say(f"down at {self.cell.at.name}")
 
@@ -153,21 +153,19 @@ class WorkcellShell(cmd.Cmd):
     # ---------------------------------------------------------- vial handling
     def do_pick(self, arg):
         """pick <bay> <well>   Fetch a vial: move, open, lower, grip, check, raise.   e.g. pick 3 A1
-pick balance        Take the vial back off the balance pan.
-pick scanner|heater Lift the docked vial out of the well."""
+pick scanner|balance|heater  Take the vial back out of that station."""
         t = self.do(self.cell.pick(shlex.split(arg)))
         self.say(f"vial lifted out of the {t.name}" if t.docks else f"picked vial from {t.name}")
 
     def do_place(self, arg):
         """place <bay> <well>  Put the held vial into a rack well.   e.g. place 3 A1
-place balance       Set the vial on the balance pan and let go.
-place scanner|heater Lower the vial into the well and keep holding it (ready to scan / heat)."""
+place scanner|balance|heater  Set the vial down in that station and let go (the arm is free meanwhile)."""
         t = self.do(self.cell.place(shlex.split(arg)))
         self.say(f"vial docked in the {t.name}" if t.docks else f"placed vial at {t.name}")
 
     # ------------------------------------------------------------ instruments
     def do_scan(self, _):
-        """scan                Read the 2D code of the vial docked in the scanner."""
+        """scan                Read the 2D code of the vial in the code reader."""
         code = self.do(self.cell.scan())
         self.say(f"code: {code}" if code else "scan failed: no read")
 

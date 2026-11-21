@@ -1,7 +1,9 @@
 """The controller service: the one owner of the hardware, running one labware operation at a time.
 
 It adds what a shared instrument needs on top of `operations.py`:
-  - one operation at a time: a request that arrives while another runs is refused, not queued;
+  - one operation at a time per piece of hardware (arm, code reader, balance, heater): a request for hardware
+    that is busy is refused, not queued, while the others carry on (the heater can be read while the arm
+    moves);
   - a fault latch: after an arm fault, a lost reply or a lost vial, every operation is refused until an
     operator has made the cell safe and called `clear_fault`;
   - a log of what was done.
@@ -12,6 +14,7 @@ to do with a tube that would not scan belong to the workflow that calls it (Orca
 from __future__ import annotations
 
 import asyncio
+import contextlib
 import inspect
 import time
 
@@ -21,7 +24,10 @@ from .errors import (ArmFault, ControllerBusy, ControllerFault, DeviceError, Dev
                      OperationError, VialLost)
 from .operations import Workcell
 
-OPERATIONS = ("home", "pick", "place", "scan", "weigh", "tare", "heat", "temperature", "heater_off", "rack_map")
+# Which piece of hardware each operation occupies (None: a read that needs nothing exclusive).
+RESOURCE = {"home": "arm", "pick": "arm", "place": "arm", "scan": "scanner", "weigh": "balance",
+            "tare": "balance", "heat": "heater", "temperature": "heater", "heater_off": "heater", "rack_map": None}
+OPERATIONS = tuple(RESOURCE)
 
 
 def where_words(where) -> list:
@@ -46,7 +52,7 @@ class Controller:
         self.cell = Workcell(self.dev, self.deck)
         self.arm, self.admin = self.dev.arm, self.dev.admin
         self.fault: str | None = None
-        self._lock = asyncio.Lock()
+        self._locks = {name: asyncio.Lock() for name in set(RESOURCE.values()) if name}
         self._events: list = []
 
     # ------------------------------------------------------------------ lifecycle
@@ -66,7 +72,8 @@ class Controller:
 
     # ------------------------------------------------------------------ status
     def status(self) -> dict:
-        return {"fault": self.fault, "busy": self._lock.locked(),
+        busy = sorted(name for name, lock in self._locks.items() if lock.locked())
+        return {"fault": self.fault, "busy": bool(busy), "busy_hardware": busy,
                 "at": self.cell.at.name if self.cell.at else None,
                 "bays": sorted(self.deck.bays), "stations": sorted(self.deck.stations),
                 "operations": list(OPERATIONS)}
@@ -82,14 +89,16 @@ class Controller:
             raise InvalidRequest(f"unknown operation {op!r} (have {', '.join(OPERATIONS)})")
         if self.fault:
             raise ControllerFault(f"faulted: {self.fault}; clear_fault first")
-        if self._lock.locked():
-            raise ControllerBusy("another operation is running")
+        resource = RESOURCE[op]
+        lock = self._locks.get(resource)
+        if lock is not None and lock.locked():
+            raise ControllerBusy(f"the {resource} is busy with another operation")
         fn = getattr(self, f"_op_{op}")
         try:
             inspect.signature(fn).bind(**args)
         except TypeError as exc:
             raise InvalidRequest(f"{op}: {exc}")
-        async with self._lock:
+        async with lock or contextlib.nullcontext():
             try:
                 result = await fn(**args)
             except ValueError as exc:                    # bad address, bad well name
@@ -139,7 +148,7 @@ class Controller:
             if exc.code == "RANGE":
                 raise InvalidRequest(f"heat: {celsius:g} C is outside the heater's range")
             if exc.code == "NO_VIAL":
-                raise OperationError("heat: no vial docked in the heater")
+                raise OperationError("heat: no vial in the heater")
             raise
 
     async def _op_temperature(self) -> dict:

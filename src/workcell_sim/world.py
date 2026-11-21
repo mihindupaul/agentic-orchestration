@@ -1,4 +1,4 @@
-"""Shared physical state: racks, vials, the balance pan and whatever the gripper holds."""
+"""Shared physical state: racks, vials, the balance pan, the heater well and whatever the gripper holds."""
 
 from __future__ import annotations
 
@@ -57,6 +57,8 @@ class World:
             self.racks[slot] = Rack(slot, phi, cx, cy)
         self.pan: Optional[Vial] = None
         self.pan_since: float = 0.0     # sim time the pan load last changed
+        # Vials set down in a station well (the arm is free meanwhile). The balance pan is `pan`.
+        self.in_well: dict = {"scanner": None, "heater": None}
         self.held: Optional[Vial] = None
         self.events: list = []
 
@@ -147,6 +149,11 @@ class World:
             self.pan_since = self.clock.now()
             self.log("pick", src="balance", vial=self.held.vid)
             return "gripped"
+        station = self.station_at(x, y)
+        if station in self.in_well and self.in_well[station] is not None:
+            self.held, self.in_well[station] = self.in_well[station], None
+            self.log("pick", src=station, vial=self.held.vid)
+            return "gripped"
         hit = self.locate(x, y)
         if hit and hit[0] == "well":
             _, rack, r, c = hit
@@ -168,6 +175,11 @@ class World:
                 self.pan_since = self.clock.now()
                 self.log("place", dst="balance", vial=v.vid)
                 return "placed_balance"
+            station = self.station_at(x, y)
+            if station in self.in_well and self.in_well[station] is None:
+                self.in_well[station], self.held = v, None
+                self.log("place", dst=station, vial=v.vid)
+                return f"placed_{station}"
             hit = self.locate(x, y)
             if hit and hit[0] == "well":
                 _, rack, r, c = hit
@@ -180,6 +192,16 @@ class World:
         self.log("vial_dropped", vial=v.vid, at=[round(x, 1), round(y, 1), round(z, 1)])
         return "dropped"
 
+    @property
+    def in_heater(self) -> Optional[Vial]:
+        return self.in_well["heater"]
+
+    def vial_at(self, station: str, pose) -> Optional[Vial]:
+        """The vial in a station well: set down in it, or held down in it by the gripper."""
+        if self.in_well.get(station) is not None:
+            return self.in_well[station]
+        return self.held if self.docked(pose, station) else None
+
     def lose_held(self, reason: str) -> None:
         if self.held is not None:
             self.log("vial_dropped", vial=self.held.vid, reason=reason)
@@ -191,5 +213,7 @@ class World:
             "racks": {s: {"present": r.present, "barcode": r.barcode, "vials": len(r.wells)}
                       for s, r in self.racks.items()},
             "balance_pan": self.pan.vid if self.pan else None,
+            "scanner_well": self.in_well["scanner"].vid if self.in_well["scanner"] else None,
+            "heater_well": self.in_well["heater"].vid if self.in_well["heater"] else None,
             "held": self.held.vid if self.held else None,
         }

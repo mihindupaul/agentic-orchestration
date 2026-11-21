@@ -132,6 +132,7 @@ def snapshot(sim) -> dict:
         "gripper_closed": arm.gripper_closed,
         "held": None if w.held is None else {"heated": w.held.peak_c is not None, "barcode": w.held.barcode},
         "pan": None if pan is None else {"heated": pan.peak_c is not None},
+        "in_heater": None if w.in_heater is None else {"heated": w.in_heater.peak_c is not None},
         "balance_g": (pan.gross_g if pan else 0.0) - sim.balance.tare_g,
         "scanner_busy": sim.scanner.busy,
         "heater": sim.heater_state(),
@@ -249,6 +250,9 @@ def dynamic_markers(snap: dict, layout: Layout | None = None) -> list:
     if snap["pan"]:
         bx, by = lay.station_xy("balance")
         out += _vial("pan_", 0, bx, by, 0.0, snap["pan"]["heated"])
+    if snap.get("in_heater"):
+        hx, hy = lay.station_xy("heater")
+        out += _vial("heater_vial_", 0, hx, hy, -VIAL_GRIP_DEPTH, snap["in_heater"]["heated"])
 
     bx, by = lay.station_xy("balance")
     out.append(_m("readouts", 0, "text", (bx + DISPLAY_DX, by + 30, 58), (0, 0, 20), (0.4, 1.0, 0.6, 1.0),

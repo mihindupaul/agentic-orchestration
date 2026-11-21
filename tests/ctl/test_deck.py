@@ -27,8 +27,9 @@ def test_addresses_resolve_to_targets():
     deck = Deck.load()
     t = deck.resolve("bay 3 a1")
     assert t.name == "bay 3 A1" and t.kind == "well" and t.work_z == deck.grip_z
-    assert deck.resolve("scanner").docks and deck.resolve("scanner").work_z == deck.dock_z
-    assert not deck.resolve("balance").docks
+    # Every station is a set-down well: the vial is released there and the arm is free meanwhile.
+    assert not any(deck.station(name).docks for name in deck.stations)
+    assert deck.resolve("scanner").work_z == deck.grip_z
     assert deck.resolve("0 300").xy == (0.0, 300.0)
     assert deck.wells(1)[:3] == ["A1", "B1", "C1"] and len(deck.wells(1)) == 96
 

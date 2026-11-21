@@ -117,7 +117,7 @@ def test_heat_temp_and_heater_off():
         assert said[-2] == "heater off" and said[-1].endswith("off, OFF")
         shell.onecmd("heater on")                                  # usage error: reported, not raised
         assert said[-1].endswith("off, OFF")
-        assert sim.heater.target is None and sim.world.held.peak_c >= 59.5
+        assert sim.heater.target is None and sim.world.in_heater.peak_c >= 59.5   # set down in the well
     finally:
         _close(shell)
         _stop_sim(sim, loop)

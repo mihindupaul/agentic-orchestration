@@ -19,11 +19,13 @@ instrument. Everything below is invented for the simulator, or follows a public 
 - Balance, scanner and heater protocols are generic placeholders.
 - Heater well (`workcell_sim/config.py:HeaterSpec`): every number is invented. Ambient 22 C; set range 25-100 C;
   heats or cools at most 2 C per simulated second, with a first-order lag (time constant 5 s) near the target;
-  STABLE after 3 s within 0.5 C of the target; cools back toward ambient when off. Fault `heater_timeout` plateaus
+  STABLE after 3 s within 0.5 C of the target; cools back toward ambient when off. The vial is set down in the
+  well and released (like the balance), so the arm is free while it heats. Fault `heater_timeout` plateaus
   5 C short of the target, `heater_overshoot` peaks 8 C over and then settles. The vial records the hottest
   temperature it saw (`peak_c`), sampled whenever the heater state is read.
 - No doors/shutters yet; vials are lowered into open wells.
 - RViz look (column height, link shapes, vial 8 x 45 mm, rack height, finger offsets, colours): cosmetic constants
   at the top of `ros2/workcell_sim_ros/workcell_sim_ros/scene.py`; they never affect the simulation.
 - The controller's service rules (one operation at a time, fault latch, which errors latch) are this project's own design.
-- Orca/cheshire-drivers APIs were read from GitHub sources, not executed. See `docs/orca-integration.md`.
+- Orca integration is verified against Orca 2.3.0 / cheshire-drivers 1.2.0 (see `docs/orca-integration.md`). The
+  rack is declared to Orca as a deep-well 96 plate, the closest catalog entry with the same SBS footprint.

@@ -29,7 +29,7 @@ def with_ctl(fn, fill=("A1", "A2", "B1")):
 def test_operations_by_name():
     async def go(sim, ctl):
         assert await ctl.run("pick", where="1 A1") == {"at": "bay 1 A1"}
-        assert await ctl.run("place", where={"station": "scanner"}) == {"at": "scanner", "holding": True}
+        assert await ctl.run("place", where={"station": "scanner"}) == {"at": "scanner", "holding": False}
         assert await ctl.run("scan") == {"code": "RACK001-A1"}
         await ctl.run("pick", where="scanner")
         await ctl.run("place", where="heater")
@@ -54,6 +54,17 @@ def test_one_operation_at_a_time():
         with pytest.raises(ControllerBusy):
             await ctl.run("home")
         await first
+    with_ctl(go)
+
+
+def test_other_hardware_works_while_the_arm_moves():
+    async def go(sim, ctl):
+        moving = asyncio.create_task(ctl.run("pick", where="1 A1"))
+        await asyncio.sleep(0)
+        assert ctl.status()["busy_hardware"] == ["arm"]
+        assert (await ctl.run("temperature"))["state"] == "OFF"     # heater read during the move
+        assert await ctl.run("tare") == {}                          # balance too
+        await moving
     with_ctl(go)
 
 

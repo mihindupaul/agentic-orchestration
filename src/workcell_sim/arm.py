@@ -175,6 +175,10 @@ class Arm:
             if (self.world.station_at(tx, ty) == "balance" and self.world.pan is not None
                     and self.world.held is not None):
                 return "occupied_pan"
+            station = self.world.station_at(tx, ty)
+            if (station in self.world.in_well and self.world.in_well[station] is not None
+                    and self.world.held is not None):
+                return f"occupied_{station}"
         return ""
 
     async def _do_move(self, target) -> None:
