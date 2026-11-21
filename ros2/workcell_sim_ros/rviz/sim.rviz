@@ -1,0 +1,96 @@
+Visualization Manager:
+  Class: ""
+  Displays:
+    - Class: rviz_default_plugins/Grid
+      Name: Grid
+      Enabled: false
+      Reference Frame: world
+      Cell Size: 0.1
+      Plane Cell Count: 12
+      Color: 70; 74; 80
+    - Class: rviz_default_plugins/RobotModel
+      Name: Arm
+      Enabled: true
+      Description Source: Topic
+      Description Topic:
+        Value: /robot_description
+        Durability Policy: Transient Local
+      Visual Enabled: true
+      Collision Enabled: false
+      Alpha: 1
+    - Class: rviz_default_plugins/MarkerArray
+      Name: Deck
+      Enabled: true
+      Topic:
+        Value: /workcell/scene_static
+        Durability Policy: Transient Local
+    - Class: rviz_default_plugins/MarkerArray
+      Name: Scene
+      Enabled: true
+      Topic:
+        Value: /workcell/scene
+        Durability Policy: Volatile
+  Global Options:
+    Background Color: 196; 199; 204
+    Fixed Frame: world
+    Frame Rate: 30
+  Enabled: true
+  Name: root
+  Tools:
+    - Class: rviz_default_plugins/Interact
+    - Class: rviz_default_plugins/MoveCamera
+    - Class: rviz_default_plugins/Select
+  Value: true
+  Views:
+    Current:
+      Class: rviz_default_plugins/Orbit
+      Name: Overview
+      Distance: 1.4
+      Focal Point:
+        X: 0
+        Y: 0.3
+        Z: 0.0
+      Pitch: 0.72
+      Yaw: 1.5708
+      Near Clip Distance: 0.01
+      Target Frame: <Fixed Frame>
+    Saved:
+      - Class: rviz_default_plugins/Orbit
+        Name: Overview
+        Distance: 1.4
+        Focal Point: {X: 0, Y: 0.3, Z: 0.0}
+        Pitch: 0.72
+        Yaw: 1.5708
+        Near Clip Distance: 0.01
+        Target Frame: <Fixed Frame>
+      - Class: rviz_default_plugins/Orbit
+        Name: Top down
+        Distance: 1.9
+        Focal Point: {X: 0, Y: 0.31, Z: 0.0}
+        Pitch: 1.5697
+        Yaw: 1.5708
+        Near Clip Distance: 0.01
+        Target Frame: <Fixed Frame>
+      - Class: rviz_default_plugins/Orbit
+        Name: Stations close-up
+        Distance: 0.75
+        Focal Point: {X: -0.25, Y: 0.38, Z: 0.02}
+        Pitch: 0.6
+        Yaw: 1.5708
+        Near Clip Distance: 0.01
+        Target Frame: <Fixed Frame>
+      - Class: rviz_default_plugins/Orbit
+        Name: Bay 3 close-up
+        Distance: 0.45
+        Focal Point: {X: 0.315, Y: 0.27, Z: 0.03}
+        Pitch: 0.65
+        Yaw: 1.5708
+        Near Clip Distance: 0.01
+        Target Frame: <Fixed Frame>
+Window Geometry:
+  Displays:
+    collapsed: true
+  Width: 1280
+  Height: 800
+  Hide Left Dock: true
+  Hide Right Dock: true

@@ -1,0 +1,30 @@
+[build-system]
+requires = ["setuptools>=61"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "agentic-orchestration"
+version = "0.1.0"
+description = "Imaginary sample-handling workcell for learning: hardware simulator, example controller and an Orca driver plug-in"
+requires-python = ">=3.10"
+license = { text = "MIT" }
+dependencies = []
+
+[project.optional-dependencies]
+dev = ["pytest>=7"]
+# Orca and its driver layer are installed from the Cheshire Labs repositories, see docs/orca-integration.md
+orca = []
+
+[project.scripts]
+workcell-sim = "workcell_sim.__main__:main"
+vialctl = "vialctl.__main__:main"
+
+[tool.setuptools.packages.find]
+where = ["src"]
+
+[tool.setuptools.package-data]
+vialctl = ["decks/*.json"]
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
+pythonpath = ["src"]

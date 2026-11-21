@@ -1,0 +1,39 @@
+# Stage 1 basics: each device on its own, one command at a time. No process, just what each command does.
+#   python workcell_cli.py --host <sim-ip> run basics.txt
+
+# Arm: power, ask where it is, move it around
+raw arm RobotMode()
+enable
+raw arm GetPose()
+move scanner
+move heater
+move home
+speed 50
+move 3 A1
+speed 100
+
+# Gripper: close on a vial, check, put it back
+down
+grip
+up
+down
+release
+up
+
+# Scanner: status, and what it says with nothing in the well
+raw scanner STATUS
+raw scanner TRIG
+
+# Balance: zero it, read it now, read it when stable
+raw balance Z
+raw balance SI
+weigh
+
+# Heater: status, temperature, and a heat request with nothing docked
+raw heater STATUS
+raw heater TEMP
+raw heater SET,60
+temp
+
+move home
+disable

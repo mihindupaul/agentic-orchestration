@@ -1,0 +1,21 @@
+# docker compose -f ros2/docker/compose.yaml up --build
+# Browser view: http://localhost:6080/vnc.html?autoconnect=1&resize=scale
+# Device ports on localhost, so the CLI and controller use --host 127.0.0.1 (the default).
+services:
+  sim:
+    build: .
+    image: workcell-sim-ros:jazzy
+    container_name: workcell-sim
+    volumes:
+      - ../..:/repo:ro                 # live repo: edits need only a restart
+      - ./recordings:/recordings       # ffmpeg clips (see record.sh)
+    ports:
+      - "29999:29999"
+      - "30003:30003"
+      - "30004:30004"
+      - "5001:5001"
+      - "5002:5002"
+      - "5003:5003"
+      - "9000:9000"
+      - "6080:6080"
+    command: ["time_scale:=1.0"]

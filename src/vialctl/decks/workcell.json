@@ -1,0 +1,24 @@
+{
+  "name": "workcell",
+  "about": "Deck definition for the imaginary workcell. Millimetres, origin at the arm base, +X operator's left, +Y toward the operator, Z up from the deck. On a real cell these numbers are taught or calibrated, then kept here.",
+  "heights": {"safe_z": 100.0, "grip_z": 20.0, "dock_z": 10.0},
+  "home": [0.0, 300.0, 100.0, 0.0],
+  "rack_types": {
+    "sbs96": {"rows": 8, "cols": 12, "pitch": 9.0}
+  },
+  "bays": {
+    "1": {"centre": [315.0, 160.0], "rack_type": "sbs96", "col_dir": [-1, 0], "row_dir": [0, 1]},
+    "2": {"centre": [150.0, 160.0], "rack_type": "sbs96", "col_dir": [-1, 0], "row_dir": [0, 1]},
+    "3": {"centre": [315.0, 270.0], "rack_type": "sbs96", "col_dir": [-1, 0], "row_dir": [0, 1]},
+    "4": {"centre": [150.0, 270.0], "rack_type": "sbs96", "col_dir": [-1, 0], "row_dir": [0, 1]},
+    "5": {"centre": [315.0, 380.0], "rack_type": "sbs96", "col_dir": [-1, 0], "row_dir": [0, 1]},
+    "6": {"centre": [150.0, 380.0], "rack_type": "sbs96", "col_dir": [-1, 0], "row_dir": [0, 1]},
+    "7": {"centre": [315.0, 490.0], "rack_type": "sbs96", "col_dir": [-1, 0], "row_dir": [0, 1]},
+    "8": {"centre": [150.0, 490.0], "rack_type": "sbs96", "col_dir": [-1, 0], "row_dir": [0, 1]}
+  },
+  "stations": {
+    "scanner": {"xy": [-170.0, 230.0], "use": "dock"},
+    "heater": {"xy": [-340.0, 330.0], "use": "dock"},
+    "balance": {"xy": [-170.0, 520.0], "use": "set_down"}
+  }
+}

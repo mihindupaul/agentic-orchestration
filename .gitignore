@@ -1,0 +1,15 @@
+__pycache__/
+*.egg-info/
+.pytest_cache/
+.venv/
+build/
+dist/
+results/
+*.tar.gz
+ros2/build/
+ros2/install/
+ros2/log/
+.DS_Store
+
+# container recordings
+ros2/docker/recordings/
