@@ -24,8 +24,12 @@ automation scheduler and workflow orchestrator, with its driver layer
 `src/orca_vialstation` presents the workcell to Orca as an arm (a transporter) and three instruments (devices), and
 Orca workflows run against the simulator, live, through the controller. Two workflows running together kept every
 instrument busy at once: 48 vials scanned, weighed or heated in 14.5 minutes, with all the scanning and weighing
-done while the heater worked. See [`docs/orca-integration.md`](docs/orca-integration.md) for how it fits together
-and what was learned along the way.
+done while the heater worked. See [`docs/orca-integration.md`](docs/orca-integration.md) for how it fits together.
+
+Thanks to Cheshire Labs: Orca's reservation-based scheduling and clear driver interfaces made it possible to
+orchestrate this workcell without changing a line of Orca, and its source and examples were the guide for the
+plug-in. Orca and cheshire-drivers are source-available under the Server Side Public License (SSPL-1.0); this
+repository uses them as dependencies only and includes none of their code.
 
 ## Quick start
 ```
@@ -58,15 +62,8 @@ See [`demos/`](demos/) for the stage plan and runnable demos for each stage.
 See `docs/architecture.md`, `docs/orca-integration.md`, `docs/assumptions.md` and `docs/provenance.md`.
 
 ## Acknowledgements
-Thanks to [Cheshire Labs](https://cheshirelabs.io) for [Orca](https://github.com/Cheshire-Labs/orca) and
-[cheshire-drivers](https://github.com/Cheshire-Labs/cheshire-drivers): their reservation-based scheduling and clear
-driver interfaces made it possible to orchestrate this workcell without changing a line of Orca, and their source and
-examples were the guide for the plug-in. Orca builds on the work of the [PyLabRobot](https://github.com/PyLabRobot/pylabrobot)
-community, which deserves credit too. The 3D view uses [ROS 2](https://docs.ros.org) and RViz, and the browser view
-uses [noVNC](https://github.com/novnc/noVNC).
-
-Orca and cheshire-drivers are source-available under the Server Side Public License (SSPL-1.0). This repository uses
-them as dependencies only and includes none of their code.
+Orca builds on the work of the [PyLabRobot](https://github.com/PyLabRobot/pylabrobot) community. The 3D view uses
+[ROS 2](https://docs.ros.org) and RViz, and the browser view uses [noVNC](https://github.com/novnc/noVNC).
 
 ## Disclaimer
 Independent, educational project. The workcell is an imaginary design made up for this project: it does not
