@@ -20,9 +20,9 @@ import asyncio
 import os
 from dataclasses import dataclass
 
-from vialctl.api import ControllerClient
-from vialctl.errors import (ArmFault, ControllerBusy, ControllerFault, DeviceError, DeviceTimeout, GripperEmpty,
-                            InvalidRequest, OperationError, VialCtlError, VialLost)
+from workcell_controller.api import ControllerClient
+from workcell_controller.errors import (ArmFault, ControllerBusy, ControllerFault, DeviceError, DeviceTimeout, GripperEmpty,
+                            InvalidRequest, OperationError, ControllerError, VialLost)
 
 ACTIONS = ("pick", "place", "home", "scan", "weigh", "tare", "heat", "temperature", "heater_off")
 
@@ -54,10 +54,10 @@ class StationConfig:
 
     @classmethod
     def from_env(cls) -> "StationConfig":
-        """The controller's address from the environment (VIALCTL_HOST / VIALCTL_PORT), so the deployment
+        """The controller's address from the environment (CONTROLLER_HOST / CONTROLLER_PORT), so the deployment
         package needs no code change per site."""
-        return cls(ctl_host=os.environ.get("VIALCTL_HOST", "127.0.0.1"),
-                   ctl_port=int(os.environ.get("VIALCTL_PORT", "8700")))
+        return cls(ctl_host=os.environ.get("CONTROLLER_HOST", "127.0.0.1"),
+                   ctl_port=int(os.environ.get("CONTROLLER_PORT", "8700")))
 
 
 class VialStationCore:
@@ -99,7 +99,7 @@ class VialStationCore:
             raise CoreRejected(f"{action}: {exc}")
         except (DeviceTimeout, ConnectionError, OSError, asyncio.IncompleteReadError) as exc:
             raise CoreUnknown(f"{action} was sent but its outcome is unknown: {exc}")
-        except VialCtlError as exc:
+        except ControllerError as exc:
             raise CoreFailed(f"{action}: {exc}")
         out.pop("id", None)
         out.pop("ok", None)

@@ -15,9 +15,9 @@ from cheshire_drivers.driver_errors import DriverError, DriverRefusedError, Driv
 from orca_vialstation.cell import (BalanceDriver, CellArmDriver, CodeReaderDriver, HeaterDriver,  # noqa: E402
                                    SimStationDriver, address, layout)
 from orca_vialstation.station_core import StationConfig  # noqa: E402
-from vialctl import Controller  # noqa: E402
-from vialctl.api import serve  # noqa: E402
-from vialctl.deck import Deck  # noqa: E402
+from workcell_controller import Controller  # noqa: E402
+from workcell_controller.api import serve  # noqa: E402
+from workcell_controller.deck import Deck  # noqa: E402
 from workcell_sim import Simulator, Timing  # noqa: E402
 
 FREE = {k: 0 for k in ("arm_dashboard", "arm_motion", "arm_feedback", "balance", "scanner", "heater", "admin")}

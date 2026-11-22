@@ -8,8 +8,8 @@ instrument. Everything below is invented for the simulator, or follows a public 
   operator's left, numbered in reading order from the back-left (1 2 / 3 4 / 5 6 / 7 8). Code reader, heater and
   balance wells spread over the operator's right. Dimensions are approximate, sized so a bay fits an SBS rack with
   clearance.
-- The controller's deck file (`src/vialctl/decks/workcell.json`) repeats the bay, well and station positions as
-  the controller's own copy, the way a real cell keeps taught positions. `tests/ctl/test_deck.py` checks that it
+- The controller's deck file (`src/workcell_controller/decks/workcell.json`) repeats the bay, well and station positions as
+  the controller's own copy, the way a real cell keeps taught positions. `tests/controller/test_deck.py` checks that it
   matches the simulated workcell. Safe, grip and dock heights live only in the deck file.
 - Racks are modelled as SBS 8 x 12 at 9 mm pitch, a common standard footprint.
 - Arm links (2 x 330 mm), joint limits (J1 +/-135 deg, J2 +/-155 deg), heights, timings: invented so that every bay and

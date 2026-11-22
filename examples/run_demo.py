@@ -7,7 +7,7 @@
 import argparse
 import asyncio
 
-from vialctl.operations import Workcell
+from workcell_controller.operations import Workcell
 
 
 async def main(host: str) -> None:

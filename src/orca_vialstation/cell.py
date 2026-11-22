@@ -10,7 +10,7 @@ Vials are the labware. Each vial has its own Orca thread, and Orca's scheduler m
 between rack wells and instruments. Because every instrument is its own device, a vial heating in the
 heater keeps only the heater busy: the arm and the other instruments carry on with other vials.
 
-Every driver call goes through the Orca-free `VialStationCore` to the vialctl controller. Each device has
+Every driver call goes through the Orca-free `VialStationCore` to the workcell controller. Each device has
 its own controller connection, and the controller locks per piece of hardware, so the heater can be read
 while the arm moves.
 """
@@ -33,7 +33,7 @@ from orca.runtime.device_factory_context import is_factory_bound, use_device_fac
 from orca.runtime.run_modes import WorkflowRunMode
 from orca.runtime.teachpoint_service import seeded_teachpoint_service
 
-from vialctl.deck import Deck
+from workcell_controller.deck import Deck
 
 from .station_core import CoreFailed, CoreRefused, CoreRejected, CoreUnknown, StationConfig, VialStationCore
 

@@ -2,7 +2,7 @@
 
   station_core.py  Orca-free: one action per controller operation, outcomes sorted the way Orca needs them.
   cell.py          the Orca drivers and resources (arm as transporter, instruments as devices, rack wells as
-                   positions), each driver talking through station_core to the vialctl controller.
+                   positions), each driver talking through station_core to the workcell controller.
   deployment/      the Orca deployment package: topology, workflows, and `run.py` to run them.
 
 Only station_core imports without Orca installed; the rest needs Orca and cheshire-drivers (.venv-orca).

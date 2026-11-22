@@ -7,7 +7,7 @@ import math
 
 import pytest
 
-from vialctl.deck import Deck, parse_well
+from workcell_controller.deck import Deck, parse_well
 from workcell_sim import Simulator
 
 

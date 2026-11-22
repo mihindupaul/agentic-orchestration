@@ -5,7 +5,7 @@
  Container or VM (ROS2 + RViz)                    |  macOS host
                                                   |
  workcell_sim (devices, world, physics)          |  demos/            (stage scripts)
-   sim_node: hosts the simulator, publishes ----> RViz   vialctl           (controller)
+   sim_node: hosts the simulator, publishes ----> RViz   workcell_controller           (controller)
    robot_state_publisher, markers, TF             |  orca_vialstation  (Orca driver)
                                                   |  later: workflow builder / AI
         device TCP ports 29999 30003 30004  <-----+----- only link between the two sides
@@ -41,7 +41,7 @@ Setup scripts and steps: `ros2/vm/README.md`.
   The simulator binds `0.0.0.0` in the VM; ports above must be reachable from the Mac.
 - The admin port (9000) is a simulator-only back door: what an operator does by hand (load or remove racks),
   fault injection, and ground truth for tests. It never tells a client where things are; positions come from the
-  controller's deck file (`src/vialctl/decks/workcell.json`). Real hardware has no admin port, so `vialctl`
+  controller's deck file (`src/workcell_controller/decks/workcell.json`). Real hardware has no admin port, so `workcell_controller`
   treats it as optional.
 
 ## RViz scene (to build)

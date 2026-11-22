@@ -15,7 +15,7 @@ import asyncio
 import json
 
 from .controller import OPERATIONS, Controller
-from .errors import VialCtlError
+from .errors import ControllerError
 
 
 async def handle(ctl: Controller, req: dict) -> dict:
@@ -34,7 +34,7 @@ async def handle(ctl: Controller, req: dict) -> dict:
         return {}
     if cmd == "events":
         return {"events": ctl.events(int(req.get("n", 50)))}
-    raise VialCtlError(f"unknown command {cmd!r}")
+    raise ControllerError(f"unknown command {cmd!r}")
 
 
 async def serve(ctl: Controller, host: str = "127.0.0.1", port: int = 8700) -> asyncio.AbstractServer:
@@ -48,7 +48,7 @@ async def serve(ctl: Controller, host: str = "127.0.0.1", port: int = 8700) -> a
                     out = {"ok": True, **await handle(ctl, req)}
                 except asyncio.TimeoutError:
                     out = {"ok": False, "error": "timeout", "type": "Timeout"}
-                except (VialCtlError, ValueError) as exc:
+                except (ControllerError, ValueError) as exc:
                     out = {"ok": False, "error": str(exc) or repr(exc), "type": type(exc).__name__}
                 out["id"] = rid
                 writer.write((json.dumps(out) + "\n").encode())
@@ -62,7 +62,7 @@ async def serve(ctl: Controller, host: str = "127.0.0.1", port: int = 8700) -> a
 
 
 class ControllerClient:
-    """Small client for the API, used by the Orca driver and `python -m vialctl`."""
+    """Small client for the API, used by the Orca driver and `python -m workcell_controller`."""
 
     def __init__(self, host: str = "127.0.0.1", port: int = 8700):
         self.host, self.port = host, port
@@ -93,5 +93,5 @@ class ControllerClient:
         out = json.loads(line)
         if not out.get("ok"):
             from .errors import ERRORS_BY_NAME
-            raise ERRORS_BY_NAME.get(out.get("type"), VialCtlError)(out.get("error"))
+            raise ERRORS_BY_NAME.get(out.get("type"), ControllerError)(out.get("error"))
         return out

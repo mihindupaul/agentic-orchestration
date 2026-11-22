@@ -6,7 +6,7 @@ balance, scanner and heater servers, fault injection, deterministic time scaling
 **Devices stay simple.** The simulated arm takes x, y, z moves and gripper open/close; balance, scanner and
 heater read or heat whatever is in front of them. No device knows about bays, wells or stations.
 
-**Controller** (`vialctl`, on the Mac), in layers:
+**Controller** (`workcell_controller`, on the Mac), in layers:
 - `deck.py` + `decks/workcell.json`: the deck. Bay and well addresses and station names become arm coordinates;
   safe, grip and dock heights. On real hardware these are taught positions.
 - `operations.py`: labware operations built from device commands: `pick("3 A1")`, `place("scanner")` (docks and

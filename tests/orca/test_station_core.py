@@ -8,8 +8,8 @@ import asyncio
 import pytest
 
 from orca_vialstation import CoreFailed, CoreRefused, CoreRejected, StationConfig, VialStationCore
-from vialctl import Controller
-from vialctl.api import serve
+from workcell_controller import Controller
+from workcell_controller.api import serve
 from workcell_sim import Simulator, Timing
 
 FREE = {k: 0 for k in ("arm_dashboard", "arm_motion", "arm_feedback", "balance", "scanner", "heater", "admin")}

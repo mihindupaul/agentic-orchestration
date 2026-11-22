@@ -114,7 +114,7 @@ def main() -> None:
     ap = argparse.ArgumentParser()
     ap.add_argument("workflows", nargs="+", help="one or more; several run at the same time")
     ap.add_argument("--mode", choices=["live", "sim"], default="live",
-                    help="live: through vialctl to the simulator; sim: Orca alone with in-memory instruments")
+                    help="live: through the controller to the simulator; sim: Orca alone with in-memory instruments")
     ap.add_argument("--sequential", action="store_true", help="run several workflows one after the other")
     ap.add_argument("--var", action="append", default=[], metavar="NAME=VALUE", help="workflow variable")
     ap.add_argument("--no-auto-place", action="store_true",

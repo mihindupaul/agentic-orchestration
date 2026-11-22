@@ -1,8 +1,8 @@
 """Interactive command line for the workcell: plain commands, plus raw access to every device.
 
 The devices only understand coordinates and simple commands. Names like "bay 3 A1" or "scanner" are
-turned into coordinates by the controller layer on this machine (`vialctl.deck`, `vialctl.operations`),
-using the deck file `src/vialctl/decks/workcell.json`.
+turned into coordinates by the controller layer on this machine (`workcell_controller.deck`, `workcell_controller.operations`),
+using the deck file `src/workcell_controller/decks/workcell.json`.
 
     python demos/stage1_simulator/workcell_cli.py --host 192.168.64.4
     python demos/stage1_simulator/workcell_cli.py --host 192.168.64.4 -c "enable; pick 3 A1; move scanner"
@@ -23,13 +23,13 @@ import sys
 import time
 
 try:
-    import vialctl  # noqa: F401
+    import workcell_controller  # noqa: F401
 except ImportError:          # running from a fresh clone without `make install`
     sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "src"))
 
-from vialctl.deck import Deck
-from vialctl.errors import VialCtlError
-from vialctl.operations import Workcell
+from workcell_controller.deck import Deck
+from workcell_controller.errors import ControllerError
+from workcell_controller.operations import Workcell
 
 STATIONS = ("scanner", "heater", "balance")
 TTY = sys.stdout.isatty()
@@ -59,7 +59,7 @@ class WorkcellShell(cmd.Cmd):
     def onecmd(self, line: str) -> bool:
         try:
             return super().onecmd(line)
-        except (VialCtlError, ValueError, KeyError, IndexError) as exc:
+        except (ControllerError, ValueError, KeyError, IndexError) as exc:
             print(_style(f"error: {exc}", "1;31"))
             self.cell.forget_position()      # the arm may have stopped anywhere: lift first on the next move
         except OSError as exc:
@@ -275,7 +275,7 @@ e.g.  fault scanner_noread     fault heater_timeout     fault heater_overshoot  
 def main() -> None:
     ap = argparse.ArgumentParser(description="Command the workcell from the terminal.")
     ap.add_argument("--host", default="127.0.0.1", help="simulator address, e.g. the ROS2 VM")
-    ap.add_argument("--deck", help="deck file (default: src/vialctl/decks/workcell.json)")
+    ap.add_argument("--deck", help="deck file (default: src/workcell_controller/decks/workcell.json)")
     ap.add_argument("-c", dest="commands", help="semicolon-separated commands to run, then exit")
     ap.add_argument("script", nargs="*", help="`run <file>` or any single command, then exit")
     args = ap.parse_args()

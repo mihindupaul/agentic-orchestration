@@ -17,13 +17,13 @@ orca = []
 
 [project.scripts]
 workcell-sim = "workcell_sim.__main__:main"
-vialctl = "vialctl.__main__:main"
+workcell-controller = "workcell_controller.__main__:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
 
 [tool.setuptools.package-data]
-vialctl = ["decks/*.json"]
+workcell_controller = ["decks/*.json"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

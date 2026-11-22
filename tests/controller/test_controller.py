@@ -4,9 +4,9 @@ import asyncio
 
 import pytest
 
-from vialctl import (ArmFault, Controller, ControllerBusy, ControllerFault, GripperEmpty, InvalidRequest,
+from workcell_controller import (ArmFault, Controller, ControllerBusy, ControllerFault, GripperEmpty, InvalidRequest,
                      OperationError)
-from vialctl.api import ControllerClient, serve
+from workcell_controller.api import ControllerClient, serve
 from workcell_sim import Simulator, Timing
 
 FREE = {k: 0 for k in ("arm_dashboard", "arm_motion", "arm_feedback", "balance", "scanner", "heater", "admin")}

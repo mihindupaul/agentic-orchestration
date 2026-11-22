@@ -1,11 +1,11 @@
 from __future__ import annotations
 
 
-class VialCtlError(Exception):
+class ControllerError(Exception):
     """Base class for controller errors."""
 
 
-class DeviceError(VialCtlError):
+class DeviceError(ControllerError):
     """A device answered, and the answer was an error."""
 
     def __init__(self, message: str, code: str = ""):
@@ -13,15 +13,15 @@ class DeviceError(VialCtlError):
         self.code = code
 
 
-class DeviceTimeout(VialCtlError):
+class DeviceTimeout(ControllerError):
     """A command was sent and no answer came back in time. The outcome is unknown."""
 
 
-class ArmFault(VialCtlError):
+class ArmFault(ControllerError):
     """The arm is in an error or collision state. An operator must clear it."""
 
 
-class OperationError(VialCtlError):
+class OperationError(ControllerError):
     """An operation was asked for in a state where it cannot work, e.g. placing with an empty gripper."""
 
 
@@ -33,17 +33,17 @@ class VialLost(OperationError):
     """A vial that was held is no longer in the gripper. Someone has to find it."""
 
 
-class ControllerBusy(VialCtlError):
+class ControllerBusy(ControllerError):
     """Another operation is running. Nothing was done; ask again when it has finished."""
 
 
-class ControllerFault(VialCtlError):
+class ControllerFault(ControllerError):
     """The controller is faulted and refuses new work until the fault is cleared."""
 
 
-class InvalidRequest(VialCtlError):
+class InvalidRequest(ControllerError):
     """The request is malformed or refers to things that do not exist (no such bay, well or operation)."""
 
 
-ERRORS_BY_NAME = {c.__name__: c for c in (VialCtlError, DeviceError, DeviceTimeout, ArmFault, ControllerBusy,
+ERRORS_BY_NAME = {c.__name__: c for c in (ControllerError, DeviceError, DeviceTimeout, ArmFault, ControllerBusy,
                                           ControllerFault, InvalidRequest, OperationError, GripperEmpty, VialLost)}

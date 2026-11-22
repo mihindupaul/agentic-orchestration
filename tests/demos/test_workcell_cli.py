@@ -9,7 +9,7 @@ sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "demos", 
 
 from workcell_sim import Simulator, Timing  # noqa: E402
 from workcell_sim.simulator import load_demo_racks  # noqa: E402
-from vialctl.operations import Workcell  # noqa: E402
+from workcell_controller.operations import Workcell  # noqa: E402
 from workcell_cli import WorkcellShell  # noqa: E402
 
 BASICS = os.path.join(os.path.dirname(__file__), "..", "..", "demos", "stage1_simulator", "basics.txt")

@@ -1,4 +1,4 @@
-"""vialctl: the controller layer for the imaginary vial scan / weigh / heat workcell.
+"""workcell_controller: the controller layer for the imaginary vial scan / weigh / heat workcell.
 
 The devices (arm, balance, scanner well, heater well) are kept simple: coordinates in, readings out.
 This package holds everything that knows the cell:
@@ -13,9 +13,9 @@ The devices can be the simulator in `workcell_sim` or real hardware with the sam
 from .controller import OPERATIONS, Controller
 from .deck import Deck
 from .errors import (ArmFault, ControllerBusy, ControllerFault, DeviceError, DeviceTimeout, GripperEmpty,
-                     InvalidRequest, OperationError, VialCtlError, VialLost)
+                     InvalidRequest, OperationError, ControllerError, VialLost)
 from .operations import Workcell
 
-__all__ = ["Controller", "OPERATIONS", "Deck", "Workcell", "VialCtlError", "DeviceError", "DeviceTimeout",
+__all__ = ["Controller", "OPERATIONS", "Deck", "Workcell", "ControllerError", "DeviceError", "DeviceTimeout",
            "ArmFault", "ControllerBusy", "ControllerFault", "InvalidRequest", "OperationError", "GripperEmpty",
            "VialLost"]

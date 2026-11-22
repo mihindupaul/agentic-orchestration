@@ -5,7 +5,7 @@ from orca.sdk.build import Topology
 
 from orca_vialstation.cell import Balance, CellArm, CodeReader, Heater, layout
 from orca_vialstation.station_core import StationConfig
-from vialctl.deck import Deck
+from workcell_controller.deck import Deck
 
 SYSTEM_NAME = "Vial workcell"
 SYSTEM_DESCRIPTION = "Arm as transporter; code reader, balance and heater as devices; vials as labware"

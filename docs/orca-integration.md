@@ -45,7 +45,7 @@ involved (the Orca CLI's live mode expects devices to connect to its daemon over
 
 Every vial thread starts with `MANUAL_PLACE`: in a live run it waits until its vial is registered at its well.
 `run.py` does that registration itself when a thread asks for it (the same step as Orca's "I placed it"
-remedy); `--no-auto-place` leaves it to an operator. The controller address comes from `VIALCTL_HOST/PORT`.
+remedy); `--no-auto-place` leaves it to an operator. The controller address comes from `CONTROLLER_HOST/PORT`.
 
 Orca builds a route between every pair of positions the arm can reach, so build time grows with the square of the
 positions; the topology teaches only rows C-F of bays 3 and 8 (99 positions, about 40 s to build). The tests in

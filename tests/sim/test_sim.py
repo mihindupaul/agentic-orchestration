@@ -1,7 +1,7 @@
 """The simulator on its own: device protocols and physics, driven with raw wire lines.
 
 Positions come from the simulator's own world model (ground truth); a client would take them from the
-controller's deck file instead (see tests/ctl/test_deck.py)."""
+controller's deck file instead (see tests/controller/test_deck.py)."""
 
 import asyncio
 import json

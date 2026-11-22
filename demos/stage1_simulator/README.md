@@ -7,14 +7,14 @@ the controller layer that knows how the cell is laid out.
  Mac                                                         ROS2 VM
  workcell_cli.py  "pick 3 A1"                                 simulator + RViz
       |
- vialctl.operations   pick = move, open, lower, grip, check, lift
- vialctl.deck         bay 3 A1 -> (364.5, 238.5)      --TCP-->  arm: MovL(364.5,238.5,20,0)  ToolDO(1,1)
+ workcell_controller.operations   pick = move, open, lower, grip, check, lift
+ workcell_controller.deck         bay 3 A1 -> (364.5, 238.5)      --TCP-->  arm: MovL(364.5,238.5,20,0)  ToolDO(1,1)
                       scanner  -> (-170, 230)                   scanner: TRIG
 ```
 
 The devices stay simple: every device listens on its own TCP port and speaks a short text protocol, and none of
 them knows about bays, wells or stations. The arm only takes coordinates. Everything that knows the cell lives on
-the Mac in `src/vialctl`: the deck file [`decks/workcell.json`](../../src/vialctl/decks/workcell.json) (where each
+the Mac in `src/workcell_controller`: the deck file [`decks/workcell.json`](../../src/workcell_controller/decks/workcell.json) (where each
 bay, well and station is, and the safe, grip and dock heights) and the labware operations built on it.
 
 | Device | Port | Example commands |
@@ -87,8 +87,8 @@ Faults (`fault <name>`, one-shot, consumed by the next matching command):
 
 ## Done when
 - [x] Simulated devices on their own ports, fault injection, tests passing (`make test`)
-- [x] Controller layer on the Mac: deck file and labware operations (`src/vialctl/deck.py`, `operations.py`),
-  checked against the simulated cell (`tests/ctl/test_deck.py`)
+- [x] Controller layer on the Mac: deck file and labware operations (`src/workcell_controller/deck.py`, `operations.py`),
+  checked against the simulated cell (`tests/controller/test_deck.py`)
 - [x] Command line for every device, plain and raw (`workcell_cli.py`)
 - [x] Runs from a fresh clone with the commands above
 - [x] Talks to the simulator only over the network (`--host <vm-ip>`)

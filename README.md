@@ -6,9 +6,9 @@ scanner, heated well and eight SBS rack bays), designed from scratch, with a sim
 driver plug-in.
 
 ```
-Orca ──(driver plug-in)──> vialctl controller ──TCP──> arm | balance | scanner | heater  (simulator)
-         orca_vialstation      src/vialctl                  src/workcell_sim
-                               (Mac)                         (ROS2 + RViz)
+Orca ──(driver plug-in)──> workcell controller ──TCP──> arm | balance | scanner | heater  (simulator)
+         orca_vialstation      src/workcell_controller        src/workcell_sim
+                               (Mac)                          (ROS2 + RViz)
 ```
 
 The split is deliberate. The devices are kept simple: the arm moves to x, y, z and opens or closes its gripper,
@@ -43,15 +43,15 @@ make sim-down    # stop it
 ```
 No Docker? `make sim` runs the simulator alone, without the 3D view; the CLI works the same. For a full Ubuntu
 VM instead of a container, see [ros2/vm/README.md](ros2/vm/README.md). The controller can also run as a service:
-`make ctl`, then e.g. `python -m vialctl do pick 3 A1`.
+`make ctl`, then e.g. `python -m workcell_controller do pick 3 A1`.
 Tests cover the simulator, the deck file against the simulated cell, labware operations, the controller service
 (one operation at a time, fault latch, invalid requests, API) and the CLI. Status of each part:
 
 | Part | State |
 |---|---|
 | `workcell_sim` | tested |
-| `vialctl` (deck, operations, service, API) | tested against the simulator |
-| `orca_vialstation` (drivers, devices, deployment package) | drivers tested against the simulator in Orca 2.3.0's environment (`make orca-test`); workflows run live through vialctl to the simulator |
+| `workcell_controller` (deck, operations, service, API) | tested against the simulator |
+| `orca_vialstation` (drivers, devices, deployment package) | drivers tested against the simulator in Orca 2.3.0's environment (`make orca-test`); workflows run live through the controller to the simulator |
 | `ros2/` | scene tested on the Mac; runs in the container (`ros2/docker`) or the UTM VM (`ros2/vm`) |
 
 ## Demo stages

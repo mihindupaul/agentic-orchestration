@@ -1,10 +1,10 @@
-"""vialctl: run the controller service, or send it one request.
+"""workcell_controller: run the controller service, or send it one request.
 
-  python -m vialctl serve  [--sim-host H] [--deck FILE] [--api-port 8700]
-  python -m vialctl status
-  python -m vialctl do pick 3 A1        python -m vialctl do place scanner
-  python -m vialctl do scan             python -m vialctl do heat 60
-  python -m vialctl do temperature      python -m vialctl do heater_off
+  python -m workcell_controller serve  [--sim-host H] [--deck FILE] [--api-port 8700]
+  python -m workcell_controller status
+  python -m workcell_controller do pick 3 A1        python -m workcell_controller do place scanner
+  python -m workcell_controller do scan             python -m workcell_controller do heat 60
+  python -m workcell_controller do temperature      python -m workcell_controller do heater_off
 """
 
 from __future__ import annotations
@@ -16,13 +16,13 @@ import json
 from .api import ControllerClient, serve
 from .controller import Controller
 from .deck import Deck
-from .errors import VialCtlError
+from .errors import ControllerError
 
 
 async def _serve(a) -> None:
     ctl = await Controller(a.sim_host, deck=Deck.load(a.deck)).start()
     server = await serve(ctl, a.api_host, a.api_port)
-    print(f"vialctl API on {a.api_host}:{a.api_port}, devices on {a.sim_host}", flush=True)
+    print(f"the controller API on {a.api_host}:{a.api_port}, devices on {a.sim_host}", flush=True)
     async with server:
         await server.serve_forever()
 
@@ -47,14 +47,14 @@ async def _client(a) -> None:
         out.pop("id", None)
         out.pop("ok", None)
         print(json.dumps(out, indent=2))
-    except VialCtlError as exc:
+    except ControllerError as exc:
         print(f"{type(exc).__name__}: {exc}")
     finally:
         await c.close()
 
 
 def main() -> None:
-    ap = argparse.ArgumentParser(prog="vialctl")
+    ap = argparse.ArgumentParser(prog="workcell-controller")
     ap.add_argument("cmd", choices=["serve", "status", "do"])
     ap.add_argument("words", nargs="*", help="for `do`: an operation and its arguments")
     ap.add_argument("--sim-host", default="127.0.0.1")
