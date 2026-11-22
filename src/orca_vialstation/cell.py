@@ -21,7 +21,8 @@ import abc
 import inspect
 
 from cheshire_drivers.command_timings import command_timing
-from cheshire_drivers.driver_errors import DriverRejectedError
+from cheshire_drivers.driver_errors import (DriverError, DriverOutcomeUnknownError, DriverRefusedError,
+                                            DriverRejectedError)
 from cheshire_drivers.interfaces import BaseDriver, ITransporterDriver
 from cheshire_drivers.sims import SimTransporterDriver
 from cheshire_drivers.teachpoints import AccessConfig, CartesianCoordinates, Teachpoint
@@ -34,8 +35,7 @@ from orca.runtime.teachpoint_service import seeded_teachpoint_service
 
 from vialctl.deck import Deck
 
-from .driver import _guard
-from .station_core import StationConfig, VialStationCore
+from .station_core import CoreFailed, CoreRefused, CoreRejected, CoreUnknown, StationConfig, VialStationCore
 
 STATIONS = {"code_reader": "scanner", "balance": "balance", "heater": "heater"}   # Orca name -> controller
 
@@ -56,6 +56,26 @@ def address(position_id: str) -> str:
 
 
 # ------------------------------------------------------------------------------------------- drivers
+async def _guard(coro):
+    """Run a station_core call and turn its outcome into the driver error Orca acts on:
+
+        CoreRefused  -> DriverRefusedError         nothing happened, busy or faulted: ask again later
+        CoreRejected -> DriverRejectedError        can never work as asked: do not ask again
+        CoreFailed   -> DriverError (FAILED)       something went wrong in the cell: someone has to look
+        CoreUnknown  -> DriverOutcomeUnknownError  the answer was lost: check before retrying
+    """
+    try:
+        return await coro
+    except CoreRefused as exc:
+        raise DriverRefusedError(str(exc)) from exc
+    except CoreRejected as exc:
+        raise DriverRejectedError(str(exc)) from exc
+    except CoreUnknown as exc:
+        raise DriverOutcomeUnknownError(str(exc)) from exc
+    except CoreFailed as exc:
+        raise DriverError(str(exc)) from exc
+
+
 class CellArmDriver(ITransporterDriver):
     """Live arm: an Orca pick or place at a taught position becomes a controller pick or place."""
 
@@ -88,7 +108,6 @@ class CellArmDriver(ITransporterDriver):
     async def pick_at_coords(self, request) -> None:
         r = await _guard(self.core.execute("pick", {"where": address(request.teachpoint.position_id)}))
         if not r.get("picked", True):
-            from cheshire_drivers.driver_errors import DriverError
             raise DriverError(f"no vial at {request.teachpoint.position_id}")
 
     @command_timing(typical=5.0, max=60.0)
@@ -231,7 +250,6 @@ class _Drivers:
 
 
 class CellArm(Transporter):
-    KIND = "vial_arm"
 
     def __init__(self, name: str, config: StationConfig | None = None, teachpoints: list | None = None,
                  sim_override: WorkflowRunMode | None = None) -> None:

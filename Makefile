@@ -29,13 +29,12 @@ orca-install:   # separate env for Orca (it installs its own PyLabRobot fork)
 	$(UV) venv --python 3.12 .venv-orca
 	$(UV) pip install --python $(ORCA_PY) "cheshire-orca @ git+https://github.com/Cheshire-Labs/orca.git@v2.3.0"
 	$(UV) pip install --python $(ORCA_PY) -e ".[dev]"
-WORKFLOW ?= one_vial
-PACKAGE ?= workcell
+WORKFLOW ?= scan_weigh_rows heat_rows
 ORCA_VARS = $(foreach v,$(VARS),--var $(v))
-orca-sim:       # Orca runs a workflow on its in-memory workcell: make orca-sim WORKFLOW=driver_check
-	$(ORCA_PY) -m orca_vialstation.deployment.run --package $(PACKAGE) --mode sim $(WORKFLOW) $(ORCA_VARS)
-orca-live:      # ... through vialctl to the simulator (needs sim-up and ctl): VARS="heat_c=50"; several WORKFLOW="a b" run at once
-	SIM_ADMIN_HOST=$(SIM_HOST) VIALCTL_HOST=127.0.0.1 $(ORCA_PY) -m orca_vialstation.deployment.run --package $(PACKAGE) --mode live $(WORKFLOW) $(ORCA_VARS)
+orca-live:      # Orca runs the workflows through vialctl to the simulator (needs the sim and ctl): VARS="heat_c=50"
+	VIALCTL_HOST=127.0.0.1 $(ORCA_PY) -m orca_vialstation.deployment.run --mode live $(WORKFLOW) $(ORCA_VARS)
+orca-sim:       # ... Orca alone, with in-memory instruments (no simulator, nothing to watch)
+	$(ORCA_PY) -m orca_vialstation.deployment.run --mode sim $(WORKFLOW) $(ORCA_VARS)
 orca-test:      # the whole suite, including the tests that run inside Orca
 	$(ORCA_PY) -m pytest -q
 ctl:            # controller service, API on :8700 (then e.g. python -m vialctl do pick 3 A1)

@@ -12,74 +12,46 @@ it lands. Orca and cheshire-drivers are source-available under SSPL-1.0. This re
 does not include their code.
 
 ## How the workcell appears in Orca
-- `VialWorkcell` (`src/orca_vialstation/device.py`) is an Orca `Device` with `KIND = "vial_workcell"` and one
-  site per rack bay (`bay1` .. `bay8`). Its methods are the controller's operations: `pick`, `place`, `scan`,
-  `weigh`, `tare`, `heat`, `temperature`, `heater_off`, `home`, `rack_map`.
-- Its drivers implement cheshire-drivers' `BaseDriver`:
-  - `VialWorkcellDriver` (live) sends each call through the Orca-free `VialStationCore` to the vialctl
-    service. Busy or faulted -> `DriverRefusedError`; a request that can never work -> `DriverRejectedError`;
-    a lost vial or arm fault -> `DriverError`; a lost reply -> `DriverOutcomeUnknownError`. Results a
-    workflow can branch on (no-read, heater not yet stable, empty well) come back as data.
-  - `SimVialWorkcellDriver` is an in-memory stand-in for Orca's `PURE_SIM` runs: no controller needed.
-- When Orca places a rack on a bay, `_do_notify_placed` tells the driver, which (in simulation) loads that bay
-  in the simulator through its admin port.
-- Without a bound provider the device builds its own drivers. Hosted deployments can bind
-  `VialWorkcellProvider` (`factory.py`) with `use_device_factory`.
-
-## The deployment package
-`src/orca_vialstation/deployment/` is an ordinary Orca deployment package: `topology.py` (one device,
-`vial_workcell`) and `workflows/`. `workflows/one_vial.py` is a method of four actions (scan, weigh, heat until
-stable, return) on a rack placed in bay 3.
-```
-make orca-sim          # PURE_SIM: Orca alone, in-memory workcell
-make sim-up            # then, for a live run against the simulator:
-make ctl               #   controller service on :8700 (separate terminal)
-make orca-live         #   the workflow through vialctl to the simulator
-```
-`workflows/driver_check.py` is the driver's test workflow: it calls every action and checks each result (home,
-tare, tube maps, an empty-well pick that must answer with data, scan with retries, weigh, heat with a deadline,
-heater off, return), and raises at the end if a check failed so Orca pauses and shows it. Its options are Orca
-workflow variables: `well`, `empty_bay`, `scan_tries`, `heat_c`, `heat_deadline_s`.
-```
-make orca-sim  WORKFLOW=driver_check
-make orca-live WORKFLOW=driver_check VARS="heat_c=50 heat_deadline_s=90"
-```
-`workflows/two_rows.py` is a rack job: every vial in rows A and B of bay 3 is scanned (with retries) and
-weighed, then placed in the same well of bay 8. It uses two racks (source in bay 3, destination in bay 8, the
-second thread joins the first one's method) and one Orca action per vial (`vial_A1` .. `vial_B12`). A well with
-no vial is skipped, a vial that never scans goes back to its own well, and `prepare` refuses to start if any
-destination well is taken. `make orca-live WORKFLOW=two_rows`.
-
-To see the branches, inject faults before a live run, e.g. two `scanner_noread` (the scan takes three attempts)
-and one `heater_timeout` with a short `heat_deadline_s` (the heater is switched off after the deadline).
-
-In a live run a thread that starts with `MANUAL_PLACE` waits until its rack is registered at its bay. `run.py`
-does that registration itself when a thread asks for it (the same step as Orca's "I placed it" remedy);
-`--no-auto-place` leaves it to an operator. Addresses come from `VIALCTL_HOST/PORT` and
-`SIM_ADMIN_HOST/PORT`.
-
-## Two models: one device, or separate hardware
-`orca_vialstation.deployment` treats the whole cell as one Orca device (`VialWorkcell`). It is simple, but
-Orca reserves a device for the length of an action, so only one thing happens at a time.
-
-`orca_vialstation.cell_deployment` (`src/orca_vialstation/cell.py`) describes the hardware the way Orca expects:
+`src/orca_vialstation/cell.py` describes the hardware the way Orca expects:
 - `CellArm`: an Orca transporter (`ITransporterDriver`). Orca reserves it only while it moves a vial; a pick or
   place at a taught position becomes a controller pick or place (`bay3_C1` -> `3 C1`, `code_reader` -> `scanner`).
-  Teachpoints come from the controller's deck file.
-- `CodeReader`, `Balance`, `Heater`: separate Orca devices, each with its own controller connection.
+  Teachpoints come from the controller's deck file. Arm controls the cell does not offer (raw coordinates,
+  single-axis moves) are refused.
+- `CodeReader`, `Balance`, `Heater`: separate Orca devices, each with its own controller connection, and each
+  driver offers only its own instrument's operations.
 - Rack wells are Orca positions (plate pads), and every vial is labware with its own thread.
 - The controller locks per piece of hardware, and every station is a set-down well, so a vial can sit in the
   heater while the arm and the other instruments serve other vials.
 
-Two workflows run together over it: `scan_weigh_rows` (rows C and E: code reader, balance, bay 8) and `heat_rows`
-(rows D and F: heater with `heat_c` and `hold_s`, bay 8).
+Every driver call goes through the Orca-free `VialStationCore` (`station_core.py`) to the the controller service, and
+the outcome becomes the driver error Orca acts on: busy or faulted -> `DriverRefusedError`; a request that can
+never work -> `DriverRejectedError`; a lost vial or arm fault -> `DriverError`; a lost reply ->
+`DriverOutcomeUnknownError`. Results a workflow can branch on (no-read, heater not yet stable) come back as
+data. `SimStationDriver` is the in-memory stand-in Orca uses in `PURE_SIM` runs.
+
+## The deployment package
+`src/orca_vialstation/deployment/` is an ordinary Orca deployment package: `topology.py` and `workflows/`.
+Two workflows run together over the cell: `scan_weigh_rows` (rows C and E: code reader, balance, bay 8) and
+`heat_rows` (rows D and F: heater with `heat_c` and `hold_s`, bay 8).
 ```
-make orca-live SIM_HOST=192.168.64.4 PACKAGE=cell WORKFLOW="scan_weigh_rows heat_rows"
+make sim-up                                  # or the VM: ros2/vm/deploy.sh
+make ctl                                     # controller service on :8700 (SIM_HOST=192.168.64.4 for the VM)
+make orca-live                               # both workflows at once: WORKFLOW="scan_weigh_rows heat_rows"
+make orca-live WORKFLOW=heat_rows VARS="heat_c=50 hold_s=10"
 ```
+`run.py` embeds Orca in its own process: it builds the system from the package, starts a `SystemRuntime` and
+submits the workflows. The drivers are ordinary objects in that process, so no Orca daemon or device gateway is
+involved (the Orca CLI's live mode expects devices to connect to its daemon over Orca's own WebSocket protocol).
+
+Every vial thread starts with `MANUAL_PLACE`: in a live run it waits until its vial is registered at its well.
+`run.py` does that registration itself when a thread asks for it (the same step as Orca's "I placed it"
+remedy); `--no-auto-place` leaves it to an operator. The controller address comes from `VIALCTL_HOST/PORT`.
+
 Orca builds a route between every pair of positions the arm can reach, so build time grows with the square of the
-positions; the topology teaches only rows C-F of bays 3 and 8 (99 positions, about 40 s to build).
+positions; the topology teaches only rows C-F of bays 3 and 8 (99 positions, about 40 s to build). The tests in
+`tests/orca/test_cell.py` call the drivers directly, the way Orca does, so they need no build.
 
-
+## Lessons
 1. A custom `Device` subclass with its own `KIND` is the natural fit; posing as a liquid handler is not needed.
 2. A thread that starts with `REUSE_EXISTING` cannot be a workflow entry; use `MANUAL_PLACE`.
 3. Register a manually placed rack only once its thread is `AWAITING_MANUAL_PLACE`; registering earlier
@@ -109,3 +81,7 @@ positions; the topology teaches only rows C-F of bays 3 and 8 (99 positions, abo
     simulated arm's view of the deck in step); on real hardware they do nothing.
 14. Labware type categories are checked: a tube type needs a tube template, and none of the catalog's tube
     types builds in this release, so vials are declared with a plate type.
+15. The Orca CLI and daemon run live workflows only on devices that connected to the daemon over Orca's own
+    WebSocket protocol (a device agent with a heartbeat); devices whose drivers were built in-process count as
+    "not connected". Submitting through the runtime directly, as `run.py` does, needs no gateway. The daemon
+    also keeps the topology it loaded at start: restart it after changing the topology.
