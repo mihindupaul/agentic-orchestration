@@ -22,11 +22,11 @@ controller: they are Orca workflows built from its operations (stages 2 and 3).
 ## Built on Orca
 The workflow layer is [Orca](https://github.com/Cheshire-Labs/orca) by [Cheshire Labs](https://cheshirelabs.io), a lab
 automation scheduler and workflow orchestrator, with its driver layer
-[cheshire-drivers](https://github.com/Cheshire-Labs/cheshire-drivers). Orca is used unmodified: the plug-in in
-`src/orca_workcell` presents the workcell to Orca as an arm (a transporter) and three instruments (devices), and
-Orca workflows run against the simulator, live, through the controller. Two workflows running together kept every
-instrument busy at once: 48 vials scanned, weighed or heated in 14.5 minutes, with all the scanning and weighing
-done while the heater worked. See [`docs/orca-integration.md`](docs/orca-integration.md) for how it fits together.
+[cheshire-drivers](https://github.com/Cheshire-Labs/cheshire-drivers). The plug-in in `src/orca_workcell` presents
+the workcell to Orca as an arm (a transporter) and three instruments (devices), and Orca workflows run live on the
+simulator through the controller: two workflows running together kept every instrument busy, 48 vials scanned,
+weighed or heated in 14.5 minutes. See [`docs/orca-integration.md`](docs/orca-integration.md) for how it fits
+together.
 
 Thanks to Cheshire Labs: Orca's reservation-based scheduling and clear driver interfaces made it possible to
 orchestrate this workcell without changing a line of Orca, and its source and examples were the guide for the
