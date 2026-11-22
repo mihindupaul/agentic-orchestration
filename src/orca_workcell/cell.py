@@ -10,7 +10,7 @@ Vials are the labware. Each vial has its own Orca thread, and Orca's scheduler m
 between rack wells and instruments. Because every instrument is its own device, a vial heating in the
 heater keeps only the heater busy: the arm and the other instruments carry on with other vials.
 
-Every driver call goes through the Orca-free `VialStationCore` to the workcell controller. Each device has
+Every driver call goes through the Orca-free `CellCore` to the workcell controller. Each device has
 its own controller connection, and the controller locks per piece of hardware, so the heater can be read
 while the arm moves.
 """
@@ -35,7 +35,7 @@ from orca.runtime.teachpoint_service import seeded_teachpoint_service
 
 from workcell_controller.deck import Deck
 
-from .station_core import CoreFailed, CoreRefused, CoreRejected, CoreUnknown, StationConfig, VialStationCore
+from .core import CoreFailed, CoreRefused, CoreRejected, CoreUnknown, ControllerConfig, CellCore
 
 STATIONS = {"code_reader": "scanner", "balance": "balance", "heater": "heater"}   # Orca name -> controller
 
@@ -57,7 +57,7 @@ def address(position_id: str) -> str:
 
 # ------------------------------------------------------------------------------------------- drivers
 async def _guard(coro):
-    """Run a station_core call and turn its outcome into the driver error Orca acts on:
+    """Run a core call and turn its outcome into the driver error Orca acts on:
 
         CoreRefused  -> DriverRefusedError         nothing happened, busy or faulted: ask again later
         CoreRejected -> DriverRejectedError        can never work as asked: do not ask again
@@ -79,8 +79,8 @@ async def _guard(coro):
 class CellArmDriver(ITransporterDriver):
     """Live arm: an Orca pick or place at a taught position becomes a controller pick or place."""
 
-    def __init__(self, config: StationConfig | None = None, name: str = "arm"):
-        self.core, self._name, self._ready = VialStationCore(config), name, False
+    def __init__(self, config: ControllerConfig | None = None, name: str = "arm"):
+        self.core, self._name, self._ready = CellCore(config), name, False
 
     @property
     def name(self) -> str:
@@ -137,8 +137,8 @@ class StationDriver(BaseDriver):
 
     OPERATIONS: tuple = ()
 
-    def __init__(self, config: StationConfig | None = None):
-        self.core, self._ready = VialStationCore(config), False
+    def __init__(self, config: ControllerConfig | None = None):
+        self.core, self._ready = CellCore(config), False
 
     @property
     def is_initialized(self) -> bool:
@@ -251,7 +251,7 @@ class _Drivers:
 
 class CellArm(Transporter):
 
-    def __init__(self, name: str, config: StationConfig | None = None, teachpoints: list | None = None,
+    def __init__(self, name: str, config: ControllerConfig | None = None, teachpoints: list | None = None,
                  sim_override: WorkflowRunMode | None = None) -> None:
         store = seeded_teachpoint_service(teachpoints or [])
         if is_factory_bound():
@@ -264,7 +264,7 @@ class CellArm(Transporter):
 class _Station(Device[BaseDriver]):
     LIVE_DRIVER: type = StationDriver
 
-    def __init__(self, name: str, config: StationConfig | None = None,
+    def __init__(self, name: str, config: ControllerConfig | None = None,
                  sim_override: WorkflowRunMode | None = None) -> None:
         super().__init__(name, self.LIVE_DRIVER(config), SimStationDriver(name), sim_override=sim_override)
 

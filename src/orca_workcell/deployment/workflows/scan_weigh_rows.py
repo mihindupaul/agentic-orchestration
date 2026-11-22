@@ -13,7 +13,7 @@ from orca.workflow_models.thread_context import ThreadContext
 from orca.workflow_models.workflow_context import WorkflowContext
 from orca.workflow_models.workflow_templates import WorkflowTemplate
 
-from orca_vialstation.cell import Balance, CodeReader, well_position
+from orca_workcell.cell import Balance, CodeReader, well_position
 
 from ._vials import named, vial
 

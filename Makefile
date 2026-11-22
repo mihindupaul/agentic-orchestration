@@ -32,9 +32,9 @@ orca-install:   # separate env for Orca (it installs its own PyLabRobot fork)
 WORKFLOW ?= scan_weigh_rows heat_rows
 ORCA_VARS = $(foreach v,$(VARS),--var $(v))
 orca-live:      # Orca runs the workflows through the controller to the simulator (needs the sim and ctl): VARS="heat_c=50"
-	CONTROLLER_HOST=127.0.0.1 $(ORCA_PY) -m orca_vialstation.deployment.run --mode live $(WORKFLOW) $(ORCA_VARS)
+	CONTROLLER_HOST=127.0.0.1 $(ORCA_PY) -m orca_workcell.deployment.run --mode live $(WORKFLOW) $(ORCA_VARS)
 orca-sim:       # ... Orca alone, with in-memory instruments (no simulator, nothing to watch)
-	$(ORCA_PY) -m orca_vialstation.deployment.run --mode sim $(WORKFLOW) $(ORCA_VARS)
+	$(ORCA_PY) -m orca_workcell.deployment.run --mode sim $(WORKFLOW) $(ORCA_VARS)
 orca-test:      # the whole suite, including the tests that run inside Orca
 	$(ORCA_PY) -m pytest -q
 ctl:            # controller service, API on :8700 (then e.g. python -m workcell_controller do pick 3 A1)

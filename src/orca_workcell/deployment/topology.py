@@ -3,8 +3,8 @@
 from orca.runtime.store_factory import IRuntimeStoreFactory
 from orca.sdk.build import Topology
 
-from orca_vialstation.cell import Balance, CellArm, CodeReader, Heater, layout
-from orca_vialstation.station_core import StationConfig
+from orca_workcell.cell import Balance, CellArm, CodeReader, Heater, layout
+from orca_workcell.core import ControllerConfig
 from workcell_controller.deck import Deck
 
 SYSTEM_NAME = "Vial workcell"
@@ -13,7 +13,7 @@ SYSTEM_DESCRIPTION = "Arm as transporter; code reader, balance and heater as dev
 
 def build_topology(stores: IRuntimeStoreFactory) -> Topology:
     del stores
-    config = StationConfig.from_env()
+    config = ControllerConfig.from_env()
     pads, teachpoints = layout(Deck.load(), bays=(3, 8), rows="CDEF")     # the wells the workflows use
     return Topology(
         locations={

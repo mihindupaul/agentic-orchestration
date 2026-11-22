@@ -1,7 +1,7 @@
 """Run a workflow of this deployment package in-process.
 
-    python -m orca_vialstation.deployment.run scan_weigh_rows heat_rows --var heat_c=50   # needs the sim + ctl
-    python -m orca_vialstation.deployment.run --mode sim heat_rows        # Orca alone, in-memory instruments
+    python -m orca_workcell.deployment.run scan_weigh_rows heat_rows --var heat_c=50   # needs the sim + ctl
+    python -m orca_workcell.deployment.run --mode sim heat_rows        # Orca alone, in-memory instruments
 
 Each workflow lives in workflows/<name>.py and leaves what it found in that module's `results`.
 
@@ -62,7 +62,7 @@ def _value(text: str):
     return {"true": True, "false": False}.get(text.lower(), text)
 
 
-PACKAGE = "orca_vialstation.deployment"
+PACKAGE = "orca_workcell.deployment"
 
 
 def results_of(workflow: str) -> dict:

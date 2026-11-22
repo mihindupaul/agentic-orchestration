@@ -7,7 +7,7 @@ import asyncio
 
 import pytest
 
-from orca_vialstation import CoreFailed, CoreRefused, CoreRejected, StationConfig, VialStationCore
+from orca_workcell import CoreFailed, CoreRefused, CoreRejected, ControllerConfig, CellCore
 from workcell_controller import Controller
 from workcell_controller.api import serve
 from workcell_sim import Simulator, Timing
@@ -24,7 +24,7 @@ def with_station(fn):
         sim.admin({"cmd": "load_rack", "slot": 8, "barcode": "RK-8", "fill": []})
         ctl = await Controller("127.0.0.1", ports).start()
         server = await serve(ctl, "127.0.0.1", 0)
-        core = VialStationCore(StationConfig(ctl_port=server.sockets[0].getsockname()[1]))
+        core = CellCore(ControllerConfig(ctl_port=server.sockets[0].getsockname()[1]))
         try:
             return await fn(sim, core, ctl)
         finally:
@@ -89,7 +89,7 @@ def test_outcomes_map_to_orca_errors():
             await core.execute("place", {"station": "scanner"})                          # nothing held
         with pytest.raises(CoreRejected):
             await core.execute("fly")
-        other = VialStationCore(core.cfg)
+        other = CellCore(core.cfg)
         await other.connect()
         try:
             first = asyncio.create_task(core.execute("pick", {"bay": 3, "well": "A1"}))

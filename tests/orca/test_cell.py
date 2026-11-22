@@ -12,9 +12,9 @@ import pytest
 pytest.importorskip("orca")
 from cheshire_drivers.driver_errors import DriverError, DriverRefusedError, DriverRejectedError  # noqa: E402
 
-from orca_vialstation.cell import (BalanceDriver, CellArmDriver, CodeReaderDriver, HeaterDriver,  # noqa: E402
+from orca_workcell.cell import (BalanceDriver, CellArmDriver, CodeReaderDriver, HeaterDriver,  # noqa: E402
                                    SimStationDriver, address, layout)
-from orca_vialstation.station_core import StationConfig  # noqa: E402
+from orca_workcell.core import ControllerConfig  # noqa: E402
 from workcell_controller import Controller  # noqa: E402
 from workcell_controller.api import serve  # noqa: E402
 from workcell_controller.deck import Deck  # noqa: E402
@@ -37,7 +37,7 @@ def with_cell(fn):
         sim.admin({"cmd": "load_rack", "slot": 8, "barcode": "RK-8", "fill": []})
         ctl = await Controller("127.0.0.1", ports).start()
         server = await serve(ctl, "127.0.0.1", 0)
-        cfg = StationConfig(ctl_port=server.sockets[0].getsockname()[1])
+        cfg = ControllerConfig(ctl_port=server.sockets[0].getsockname()[1])
         drivers = {"arm": CellArmDriver(cfg), "reader": CodeReaderDriver(cfg), "balance": BalanceDriver(cfg),
                    "heater": HeaterDriver(cfg)}
         for d in drivers.values():

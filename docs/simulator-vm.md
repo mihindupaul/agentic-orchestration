@@ -6,13 +6,13 @@
                                                   |
  workcell_sim (devices, world, physics)          |  demos/            (stage scripts)
    sim_node: hosts the simulator, publishes ----> RViz   workcell_controller           (controller)
-   robot_state_publisher, markers, TF             |  orca_vialstation  (Orca driver)
+   robot_state_publisher, markers, TF             |  orca_workcell  (Orca driver)
                                                   |  later: workflow builder / AI
         device TCP ports 29999 30003 30004  <-----+----- only link between the two sides
                          5001 5002 5003 9000      |
 ```
 - The network is the only interface. Code on the Mac never imports `workcell_sim`; it gets the simulator
-  address from configuration (`--host`, `--sim-host`, `StationConfig`) and talks to the device ports, as it would
+  address from configuration (`--host`, `--sim-host`, `ControllerConfig`) and talks to the device ports, as it would
   to real hardware. Real devices speaking the same protocols would only need a different IP address.
 - The ROS2 side owns everything visual. RViz is the simulator's window; the Mac-side story (orchestration) does not
   depend on it.

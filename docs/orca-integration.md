@@ -12,7 +12,7 @@ it lands. Orca and cheshire-drivers are source-available under SSPL-1.0. This re
 does not include their code.
 
 ## How the workcell appears in Orca
-`src/orca_vialstation/cell.py` describes the hardware the way Orca expects:
+`src/orca_workcell/cell.py` describes the hardware the way Orca expects:
 - `CellArm`: an Orca transporter (`ITransporterDriver`). Orca reserves it only while it moves a vial; a pick or
   place at a taught position becomes a controller pick or place (`bay3_C1` -> `3 C1`, `code_reader` -> `scanner`).
   Teachpoints come from the controller's deck file. Arm controls the cell does not offer (raw coordinates,
@@ -23,14 +23,14 @@ does not include their code.
 - The controller locks per piece of hardware, and every station is a set-down well, so a vial can sit in the
   heater while the arm and the other instruments serve other vials.
 
-Every driver call goes through the Orca-free `VialStationCore` (`station_core.py`) to the the controller service, and
+Every driver call goes through the Orca-free `CellCore` (`core.py`) to the controller service, and
 the outcome becomes the driver error Orca acts on: busy or faulted -> `DriverRefusedError`; a request that can
 never work -> `DriverRejectedError`; a lost vial or arm fault -> `DriverError`; a lost reply ->
 `DriverOutcomeUnknownError`. Results a workflow can branch on (no-read, heater not yet stable) come back as
 data. `SimStationDriver` is the in-memory stand-in Orca uses in `PURE_SIM` runs.
 
 ## The deployment package
-`src/orca_vialstation/deployment/` is an ordinary Orca deployment package: `topology.py` and `workflows/`.
+`src/orca_workcell/deployment/` is an ordinary Orca deployment package: `topology.py` and `workflows/`.
 Two workflows run together over the cell: `scan_weigh_rows` (rows C and E: code reader, balance, bay 8) and
 `heat_rows` (rows D and F: heater with `heat_c` and `hold_s`, bay 8).
 ```

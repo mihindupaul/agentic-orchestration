@@ -48,21 +48,21 @@ class CoreUnknown(RuntimeError):
 
 
 @dataclass
-class StationConfig:
+class ControllerConfig:
     ctl_host: str = "127.0.0.1"
     ctl_port: int = 8700
 
     @classmethod
-    def from_env(cls) -> "StationConfig":
+    def from_env(cls) -> "ControllerConfig":
         """The controller's address from the environment (CONTROLLER_HOST / CONTROLLER_PORT), so the deployment
         package needs no code change per site."""
         return cls(ctl_host=os.environ.get("CONTROLLER_HOST", "127.0.0.1"),
                    ctl_port=int(os.environ.get("CONTROLLER_PORT", "8700")))
 
 
-class VialStationCore:
-    def __init__(self, config: StationConfig | None = None):
-        self.cfg = config or StationConfig()
+class CellCore:
+    def __init__(self, config: ControllerConfig | None = None):
+        self.cfg = config or ControllerConfig()
         self.ctl = ControllerClient(self.cfg.ctl_host, self.cfg.ctl_port)
 
     @property

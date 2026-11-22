@@ -7,7 +7,7 @@ driver plug-in.
 
 ```
 Orca ──(driver plug-in)──> workcell controller ──TCP──> arm | balance | scanner | heater  (simulator)
-         orca_vialstation      src/workcell_controller        src/workcell_sim
+         orca_workcell      src/workcell_controller        src/workcell_sim
                                (Mac)                          (ROS2 + RViz)
 ```
 
@@ -21,7 +21,7 @@ controller: they are Orca workflows built from its operations (stages 2 and 3).
 The workflow layer is [Orca](https://github.com/Cheshire-Labs/orca) by [Cheshire Labs](https://cheshirelabs.io), a lab
 automation scheduler and workflow orchestrator, with its driver layer
 [cheshire-drivers](https://github.com/Cheshire-Labs/cheshire-drivers). Orca is used unmodified: the plug-in in
-`src/orca_vialstation` presents the workcell to Orca as an arm (a transporter) and three instruments (devices), and
+`src/orca_workcell` presents the workcell to Orca as an arm (a transporter) and three instruments (devices), and
 Orca workflows run against the simulator, live, through the controller. Two workflows running together kept every
 instrument busy at once: 48 vials scanned, weighed or heated in 14.5 minutes, with all the scanning and weighing
 done while the heater worked. See [`docs/orca-integration.md`](docs/orca-integration.md) for how it fits together.
@@ -51,7 +51,7 @@ Tests cover the simulator, the deck file against the simulated cell, labware ope
 |---|---|
 | `workcell_sim` | tested |
 | `workcell_controller` (deck, operations, service, API) | tested against the simulator |
-| `orca_vialstation` (drivers, devices, deployment package) | drivers tested against the simulator in Orca 2.3.0's environment (`make orca-test`); workflows run live through the controller to the simulator |
+| `orca_workcell` (drivers, devices, deployment package) | drivers tested against the simulator in Orca 2.3.0's environment (`make orca-test`); workflows run live through the controller to the simulator |
 | `ros2/` | scene tested on the Mac; runs in the container (`ros2/docker`) or the UTM VM (`ros2/vm`) |
 
 ## Demo stages
