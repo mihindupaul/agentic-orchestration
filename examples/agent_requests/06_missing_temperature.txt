@@ -1,0 +1,4 @@
+# A heat step needs a temperature and there is no default: Claude should ask, not guess.
+# expect: no plan
+# Look for: a question about the temperature (and maybe the hold time), no spec.
+Heat row E of bay 3 and then put the vials in bay 8.

@@ -1,0 +1,4 @@
+# 150 C is above the heater's limit (25-100 C).
+# expect: no plan
+# Look for: names the 100 C limit and asks how to proceed, no spec.
+Heat rows A and B of bay 3 to 150 C for 30 seconds and put them in bay 8.

@@ -1,0 +1,5 @@
+# A rule on a step that comes after the value it tests: weigh first, then scan only some vials.
+# expect: plan
+# Look for: steps weigh, then scan with the rule grams < 2 -> skip; rows G and H of bay 3 to bay 8.
+Weigh the vials in rows G and H of bay 3, and read the code only of vials that weigh at least 2 g.
+Then move them to the same wells of bay 8.

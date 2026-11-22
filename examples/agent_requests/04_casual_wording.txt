@@ -1,0 +1,4 @@
+# Everyday wording: "rack 3", "codes", "first row" instead of the cell's terms.
+# expect: plan
+# Look for: one process, row A of bay 3, scan then weigh, destination bay 8.
+can you check the codes and weights of the first row in rack 3 and then move them over to rack 8

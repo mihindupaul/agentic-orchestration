@@ -1,0 +1,4 @@
+# A plain rack-to-rack move: no instrument, each vial straight to the same well of the other rack.
+# expect: plan
+# Look for: one process, row B of bay 3 to bay 8, no steps (not a scan or weigh added on the way).
+Move all the vials in row B of bay 3 to the same wells of bay 8.

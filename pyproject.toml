@@ -14,6 +14,10 @@ dependencies = []
 dev = ["pytest>=7"]
 # Orca and its driver layer are installed from the Cheshire Labs repositories, see docs/orca-integration.md
 orca = []
+# the planning agent (src/agent): the Claude API SDK and Pydantic for the workflow spec
+agent = ["anthropic>=1.0", "pydantic>=2"]
+# the agent's desktop window (python -m agent.ui)
+ui = ["PySide6>=6.6"]
 
 [project.scripts]
 workcell-sim = "workcell_sim.__main__:main"
@@ -24,6 +28,7 @@ where = ["src"]
 
 [tool.setuptools.package-data]
 workcell_controller = ["decks/*.json"]
+agent = ["prompts/*.md"]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

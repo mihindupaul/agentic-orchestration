@@ -71,12 +71,20 @@ def results_of(workflow: str) -> dict:
 
 async def run(workflow, live: bool = True, auto_place: bool = True, variables: dict | None = None,
               sequential: bool = False) -> float:
-    """Run one workflow, or several (a list). Several are submitted to one Orca runtime together, so they
-    run at the same time and Orca interleaves their actions on the shared device; `sequential=True` runs
-    them one after the other instead. Variables a workflow does not declare are left out of its submission.
-    Returns the elapsed wall-clock seconds."""
-    names = [workflow] if isinstance(workflow, str) else list(workflow)
+    """Run one workflow of this package, or several (a list). Several are submitted to one Orca runtime
+    together, so they run at the same time and Orca shares the arm and the instruments between them;
+    `sequential=True` runs them one after the other instead. Returns the elapsed wall-clock seconds."""
     build = await orca.build_system_from_package(PACKAGE, InMemoryRuntimeStoreFactory())
+    names = [workflow] if isinstance(workflow, str) else list(workflow)
+    return await run_built(build, names, live, auto_place, variables, sequential)
+
+
+async def run_built(build, names: list, live: bool = True, auto_place: bool = True,
+                    variables: dict | None = None, sequential: bool = False, on_submitted=None) -> float:
+    """Run workflows of an Orca system that is already built (from this package, or compiled from a plan),
+    then close the drivers. Variables a workflow does not declare are left out of its submission.
+    `on_submitted(runtime, execution_id)` is called for each submitted workflow, e.g. for a window that shows
+    its phase or stops it."""
     runtime = SystemRuntime(build.system, event_bus=build.event_bus)
     mode = WorkflowRunMode.LIVE if live else WorkflowRunMode.PURE_SIM
     placing: list = []
@@ -89,6 +97,8 @@ async def run(workflow, live: bool = True, auto_place: bool = True, variables: d
             sub = await runtime.submit(template, variables=own, mode=mode)
             if live and auto_place:
                 placing.append(asyncio.create_task(_place_when_asked(runtime, sub.execution_id)))
+            if on_submitted:
+                on_submitted(runtime, sub.execution_id)
             return name, sub
 
         async def finish(name, sub):

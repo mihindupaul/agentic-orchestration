@@ -1,0 +1,4 @@
+# Logic that compares one vial with others: the rules test one vial's own values only.
+# expect: no plan
+# Look for: explains that a rule cannot compare a vial with the rack average, offers a fixed threshold, no spec.
+Weigh row C of bay 3 and heat to 60 C only the vials heavier than the average of the row, then put them in bay 8.

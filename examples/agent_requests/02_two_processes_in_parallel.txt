@@ -1,0 +1,5 @@
+# Two groups of vials with different steps: two processes that run at the same time.
+# expect: plan
+# Look for: process 1 rows C and E (scan, weigh); process 2 rows D and F (heat 40 C, hold 20 s); both to bay 8.
+Scan and weigh rows C and E of bay 3. At the same time, heat rows D and F of bay 3 to 40 C and hold them
+there for 20 seconds. All vials end up in the same wells of bay 8. Finish as quickly as possible.

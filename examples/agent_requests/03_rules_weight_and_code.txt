@@ -1,0 +1,6 @@
+# Per-vial logic as rules on the heat step.
+# expect: plan
+# Look for: steps scan, weigh, heat 40 C / 20 s with two rules, in this order:
+#   grams < 10 -> skip, then code starts with "10" -> celsius 80.
+Scan and weigh every vial in rows C and D of bay 3 and heat them to 40 C for 20 s. Do not heat vials lighter
+than 10 g, and heat the ones whose code starts with 10 to 80 C instead. Put them in the same wells of bay 8.

@@ -1,0 +1,4 @@
+# The cell has no shaker.
+# expect: no plan
+# Look for: says the cell cannot shake, offers the nearest plan it can run (e.g. scan and weigh), no spec.
+Shake every vial in row A of bay 3 for one minute, then move them to bay 8.
