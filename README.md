@@ -17,7 +17,7 @@ The split is deliberate. The devices are kept simple: the arm moves to x, y, z a
 the instruments read or heat whatever is in front of them. The controller on the Mac owns everything that knows
 the cell: the deck file (where each bay, well and station is), labware operations such as "pick 3 A1" or "place
 scanner", and a small service that owns the hardware and runs one operation at a time. Rack jobs are not in the
-controller: they are Orca workflows built from its operations (stages 2 and 3).
+controller: they are Orca workflows built from its operations.
 
 ## Built on Orca
 The workflow layer is [Orca](https://github.com/Cheshire-Labs/orca) by [Cheshire Labs](https://cheshirelabs.io), a lab
@@ -48,56 +48,19 @@ approve, then watch Orca's run state and every vial's status, and stop the run i
 [`examples/agent_requests/`](examples/agent_requests/) for requests to try.
 
 ## Quick start
-Get the simulator running in your browser and let the agent plan and run a job on it.
-
-**You need**
-- macOS or Linux, with `git` and `make`
-- [Docker](https://docs.docker.com/get-docker/), running: [OrbStack](https://orbstack.dev) or Docker Desktop
-  on a Mac
-- [uv](https://docs.astral.sh/uv/getting-started/installation/), which also fetches the Python 3.12 that Orca needs
-- an [Anthropic API key](https://console.anthropic.com/) for the agent's planning (running a plan costs nothing)
-
-**1. Install** (once)
+Needs [Docker](https://docs.docker.com/get-docker/) (running), [uv](https://docs.astral.sh/uv/) and an
+[Anthropic API key](https://console.anthropic.com/).
 ```
-git clone https://github.com/mihindupaul/agentic-orchestration.git
-cd agentic-orchestration
-make orca-install                 # .venv-orca: Orca, the controller, the agent and its window
-cp .env.example .env              # then put your key in .env: ANTHROPIC_API_KEY=sk-ant-...  (git ignores .env)
+git clone https://github.com/mihindupaul/agentic-orchestration.git && cd agentic-orchestration
+make orca-install                          # Orca, the controller, the agent and its window
+echo "ANTHROPIC_API_KEY=sk-ant-..." > .env # your key (git ignores .env)
+make sim-up sim-view                       # simulator + 3D view in your browser (first build: a few minutes)
+make ctl                                   # the controller; leave it running, and in a second terminal:
+make agent-ui                              # load an example, Plan, then Run on the cell
 ```
-
-**2. Start the simulator** (terminal 1)
-```
-make sim-up                       # the simulator and its 3D view in a container; the first build takes a few minutes
-make sim-view                     # opens http://localhost:6080/vnc.html in your browser
-```
-The browser shows the workcell: a full rack in bay 3, an empty rack in bay 8, the arm, the code reader, the
-balance and the heater.
-
-**3. Start the controller** (terminal 2, leave it running)
-```
-make ctl
-```
-
-**4. Open the agent** (terminal 3)
-```
-make agent-ui
-```
-Click **Load example ▾**, pick `11_plain_move` (or type your own request), then **Plan**. Claude reads the deck
-and proposes a plan; check it in the Plan tab, then **Run on the cell** and approve. Watch the arm in the browser
-and every vial's status in the Run tab. **Stop** ends a run early.
-
-**Stop everything**
-- close the agent window
-- terminal 2: `Ctrl-C` stops the controller
-- terminal 1: `make sim-down` stops and removes the container (the next `make sim-up` starts with a fresh deck)
-
-**More to try**
-- `make test`: the test suite (no API calls, no container needed)
-- `make orca-live`: the two hand-written Orca workflows, running on the simulator together (needs steps 2 and 3)
-- `.venv-orca/bin/python demos/stage1_simulator/workcell_cli.py`: drive the cell by hand, one command at a time
-  (pick 3 A1, place scanner, scan, heat 60, ...), with every wire line shown
-- no Docker? `make sim` runs the simulator alone, without the 3D view. For a full Ubuntu VM instead of the
-  container, see [ros2/vm/README.md](ros2/vm/README.md).
+More: `make test` runs the tests; [`src/agent/README.md`](src/agent/README.md) explains the agent;
+[`docs/orca-integration.md`](docs/orca-integration.md) the hand-written Orca workflows (`make orca-live`);
+[`ros2/vm/README.md`](ros2/vm/README.md) a full VM instead of Docker.
 
 Tests cover the simulator, the deck file against the simulated cell, labware operations, the controller service
 (one operation at a time, fault latch, invalid requests, API) and the CLI. Status of each part:
@@ -110,12 +73,7 @@ Tests cover the simulator, the deck file against the simulated cell, labware ope
 | `agent` (planner, validator, compiler, window) | tested without the API (a scripted stand-in) and against the simulator; plans run live on the simulator |
 | `ros2/` | scene tested on the Mac; runs in the container (`ros2/docker`) or the UTM VM (`ros2/vm`) |
 
-## Demo stages
-The project is built and presented in stages, one per part of a content series: simulator and controller, Orca
-driver, hand-built Orca workflows, then agentic workflows (an AI agent that plans the workflow, plain code that
-checks, compiles and runs it).
-See [`demos/`](demos/) for the stage plan and runnable demos for each stage.
-
+## Docs
 See `docs/architecture.md`, `docs/orca-integration.md`, `docs/assumptions.md` and `docs/provenance.md`.
 
 ## Possible improvements
