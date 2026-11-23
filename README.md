@@ -36,14 +36,16 @@ More: `make test` runs the tests; [`src/agent/README.md`](src/agent/README.md) e
 [`docs/orca-integration.md`](docs/orca-integration.md) the hand-written Orca workflows (`make orca-live`);
 [`ros2/vm/README.md`](ros2/vm/README.md) a full VM instead of Docker.
 
-## Traditional vs AI-optimized
+## One flow vs three flows
 One prompt to the AI agent, three workflows planned from it, running at the same time on one shared arm. Side by
-side on the simulated workcell: the traditional run does one flow on its own, the AI-optimized run does all three
-together, with 2.1 times the throughput.
+side on the simulated workcell: a single flow on its own, and the same flow with two more that the AI agent runs
+alongside it, with 2.1 times the throughput.
+
+*"Heat the first four vials of column 6 in bay 3 (A6 to D6) to 35 C, hold each for 5 seconds, then put them in the same wells of bay 8. At the same time, scan and weigh the first four vials of column 1 (A1 to D1) and put them in the same wells of bay 8, and move the first four vials of column 12 (A12 to D12) straight to the same wells of bay 8. Run all three together."*
 
 https://github.com/user-attachments/assets/27596fc6-7301-4037-9c60-302a8f8093b3
 
-Both prompts are in [`examples/agent_requests/`](examples/agent_requests/) (`01_traditional`, `02_3_flows`), so the
+Both prompts are in [`examples/agent_requests/`](examples/agent_requests/) (`01_single_flow`, `02_3_flows`), so the
 comparison can be run again on the simulator.
 
 ## Built on Orca
