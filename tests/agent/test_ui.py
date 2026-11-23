@@ -11,7 +11,7 @@ pytest.importorskip("anthropic")
 os.environ.setdefault("QT_QPA_PLATFORM", "offscreen")
 from types import SimpleNamespace  # noqa: E402
 
-from PySide6.QtWidgets import QApplication, QTextBrowser  # noqa: E402
+from PySide6.QtWidgets import QApplication, QLabel, QTextBrowser  # noqa: E402
 
 from agent.inventory import DemoInventory  # noqa: E402
 from agent.spec import WorkflowSpec  # noqa: E402
@@ -125,3 +125,40 @@ def test_run_is_offered_only_for_a_plan_marked_ready(window, monkeypatch):
     w.tree.clear()
     w.planned(_plan_result(ready=True))
     assert w.run_button.isEnabled() and w.state.text().startswith("planned") and asked == ["Planned."]
+
+
+def test_the_window_shows_its_name_in_the_title_bar_and_on_top(window):
+    w, _ = window
+    assert w.windowTitle() == "Agentic Orchestration"
+    assert "Words to Work" in w.centralWidget().findChild(QLabel).text()
+
+
+def test_the_conversation_is_folded_away_and_opens_only_when_claude_asks(window, monkeypatch):
+    w, _ = window
+    w.load_button.menu().actions()[0].trigger()
+    assert not w.conversation_toggle.isChecked() and w.reply.isHidden()          # folded by default
+    monkeypatch.setattr(w, "ask_person", lambda question: None)
+    w.planned(_plan_result(ready=False))                                         # a question: opened
+    assert w.conversation_toggle.isChecked() and not w.reply.isHidden()
+    w.planned(_plan_result(ready=True))                                          # a plan ready: folded again
+    assert not w.conversation_toggle.isChecked() and w.reply.isHidden()
+
+
+def test_a_conversation_opened_by_the_person_stays_open(window):
+    w, _ = window
+    w.load_button.menu().actions()[0].trigger()
+    w.conversation_toggle.click()                                                # opened by hand
+    w.planned(_plan_result(ready=True))
+    assert w.conversation_toggle.isChecked() and not w.reply.isHidden()
+
+
+def test_a_long_status_does_not_make_the_window_wider(window):
+    w, app = window
+    w.set_state("idle")
+    app.processEvents()
+    narrow = w.minimumSizeHint().width()
+    w.set_state("failed: " + "the controller refused the request because something long happened " * 5)
+    app.processEvents()
+    assert w.minimumSizeHint().width() == narrow
+    assert w.state.toolTip().startswith("failed: the controller refused")     # readable in full on hover
+    assert w.statusBar().isAncestorOf(w.state) and w.statusBar().isAncestorOf(w.phase)

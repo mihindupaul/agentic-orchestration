@@ -25,8 +25,8 @@ from PySide6.QtCore import QObject, Qt, QThread, QTimer, Signal
 from PySide6.QtGui import QAction, QFont
 from PySide6.QtWidgets import (QApplication, QCheckBox, QDialog, QDialogButtonBox, QGroupBox, QHBoxLayout,
                                QHeaderView, QLabel, QLineEdit, QMainWindow, QMenu, QMessageBox, QPlainTextEdit,
-                               QPushButton, QSplitter, QTabWidget, QTableWidget, QTableWidgetItem, QTextBrowser,
-                               QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget)
+                               QPushButton, QSizePolicy, QSplitter, QTabWidget, QTableWidget, QTableWidgetItem,
+                               QTextBrowser, QToolButton, QTreeWidget, QTreeWidgetItem, QVBoxLayout, QWidget)
 
 from .env import load_env
 from .examples import all_examples
@@ -36,6 +36,8 @@ from .spec import Heat, WorkflowSpec
 from .validator import Report, validate
 
 COLUMNS = ["Vial", "Process", "Status", "Code", "Grams", "°C", "Rules"]
+APP_NAME = "Agentic Orchestration"                 # the title bar: the project's name
+TITLE, SUBTITLE = "Words to Work", "plan, check and run on the workcell"   # the header on top of the window
 
 
 # ------------------------------------------------------------------------------------------- workers
@@ -162,15 +164,15 @@ class Feed(QObject, logging.Handler):
 class Window(QMainWindow):
     def __init__(self):
         super().__init__()
-        self.setWindowTitle("Workcell planning agent")
+        self.setWindowTitle(APP_NAME)
         self.resize(760, 900)
         self.result = self.report = self.planner = self.runner = None
         self.conversation: list = []                    # the turns so far, to continue with an answer
         self.rows: dict[str, int] = {}
 
         # request
-        self.request = QPlainTextEdit(placeholderText="What should happen? e.g. Scan and weigh row C of bay 3, "
-                                                      "then put the vials in the same wells of bay 8.")
+        self.request = QPlainTextEdit(placeholderText="Tell the workcell in your own words, e.g. Scan and weigh row "
+                                                      "C of bay 3, then put the vials in the same wells of bay 8.")
         self.load_button = QPushButton("Load example ▾")
         self.load_button.setMenu(self._examples_menu())
         self.plan_button = QPushButton("Plan", clicked=self.plan)
@@ -182,26 +184,37 @@ class Window(QMainWindow):
             row.addWidget(w)
         row.addStretch()
         row.addWidget(self.plan_button)
-        request_box = self._box("Request", self.request, row)
+        request_box = self._box("What would you like to do?", self.request, row)
 
-        # plan
-        self.reply = QTextBrowser()
+        # plan: the plan itself up front; the conversation with Claude folded away, opened when Claude asks
+        self.conversation_toggle = QToolButton(text="Conversation with Claude", checkable=True,
+                                               toolButtonStyle=Qt.ToolButtonTextBesideIcon, arrowType=Qt.RightArrow)
+        self.conversation_toggle.setAutoRaise(True)
+        self.conversation_toggle.toggled.connect(self._fold_conversation)
+        self.conversation_toggle.clicked.connect(lambda checked: setattr(self, "opened_by_person", checked))
+        self.opened_by_person = False                   # opened by a click: then it stays open
+        self.reply = QTextBrowser(visible=False)
         self.tree = QTreeWidget(headerHidden=True)
         self.findings = QLabel(wordWrap=True)
-        plan_box = self._box("Plan", self.reply, self.tree, self.findings)
+        plan_box = self._box("Plan", self.conversation_toggle, self.reply, self.tree, self.findings)
 
         # run
         self.run_button = QPushButton("Run on the cell", enabled=False, clicked=self.run)
         self.stop_button = QPushButton("Stop", enabled=False, clicked=self.stop)
+        buttons = QHBoxLayout()
+        for w in (self.run_button, self.stop_button):
+            buttons.addWidget(w)
+        buttons.addStretch()
+        # the state and Orca's phase live in the status bar; the state ignores its text width (a long message is
+        # cut at the window's edge), so it never makes the window wider
         self.state = QLabel("idle")
-        self.phase = QLabel("Orca: -")
         bold = QFont()
         bold.setBold(True)
         self.state.setFont(bold)
-        buttons = QHBoxLayout()
-        for w in (self.run_button, self.stop_button, self.state, self.phase):
-            buttons.addWidget(w)
-        buttons.addStretch()
+        self.state.setSizePolicy(QSizePolicy.Ignored, QSizePolicy.Preferred)
+        self.phase = QLabel("Orca: -")
+        self.statusBar().addWidget(self.state, 1)
+        self.statusBar().addPermanentWidget(self.phase)
         self.table = QTableWidget(0, len(COLUMNS))
         self.table.setHorizontalHeaderLabels(COLUMNS)
         self.table.horizontalHeader().setSectionResizeMode(QHeaderView.ResizeToContents)
@@ -218,7 +231,14 @@ class Window(QMainWindow):
         main.addWidget(request_box)
         main.addWidget(self.tabs)
         main.setSizes([200, 700])
-        self.setCentralWidget(main)
+        # the name in large type on top, so it reads in a demo or a recording, not only in the title bar
+        header = QLabel(f"<span style='font-size:22pt; font-weight:600'>{TITLE}</span>"
+                        f"&nbsp;&nbsp;<span style='font-size:13pt; color:gray'>{SUBTITLE}</span>")
+        page = QWidget()
+        layout = QVBoxLayout(page)
+        layout.addWidget(header)
+        layout.addWidget(main)
+        self.setCentralWidget(page)
 
         self.timer = QTimer(self, interval=500, timeout=self.refresh)
         self.log_feed = Feed()
@@ -250,12 +270,22 @@ class Window(QMainWindow):
     def _inventory(self):
         return DemoInventory() if self.demo_deck.isChecked() else ControllerInventory(*self._address())
 
+    def _fold_conversation(self, show: bool) -> None:
+        self.reply.setVisible(show)
+        self.conversation_toggle.setArrowType(Qt.DownArrow if show else Qt.RightArrow)
+
+    def show_conversation_panel(self, show: bool) -> None:
+        """Open or fold the conversation (for the window's own reasons: a question, a failure, a plan ready)."""
+        self.conversation_toggle.setChecked(show)
+
     def load_request(self, text: str) -> None:
         """A new request (an example loaded): forget the previous conversation and plan, and clear their views.
         A run still going keeps its Run tab."""
         self.request.setPlainText(text)
         self.conversation, self.result, self.report = [], None, None
         self.reply.clear()
+        self.opened_by_person = False
+        self.show_conversation_panel(False)
         self.tree.clear()
         self.findings.clear()
         self.run_button.setEnabled(False)
@@ -272,6 +302,7 @@ class Window(QMainWindow):
 
     def set_state(self, text: str) -> None:
         self.state.setText(text)
+        self.state.setToolTip(text)                     # the whole message, when the status bar cuts it
 
     # ---------------------------------------------------------------- plan
     def plan(self) -> None:
@@ -285,7 +316,7 @@ class Window(QMainWindow):
         self.result = self.report = None
         self._show_conversation(pending=text)
         self.tree.clear()
-        self.findings.clear()
+        self.findings.setText("<i>Claude is planning ...</i>")
         self.run_button.setEnabled(False)
         self.plan_button.setEnabled(False)
         self.set_state("planning")
@@ -299,6 +330,8 @@ class Window(QMainWindow):
     def planning_failed(self, message: str) -> None:
         self._show_conversation()
         self.reply.append(f"\n**Planning failed:** {message}")
+        self.findings.setText("Planning failed: see the conversation.")
+        self.show_conversation_panel(True)
         self.plan_button.setEnabled(True)
         self.set_state("idle")
 
@@ -306,10 +339,12 @@ class Window(QMainWindow):
         self.result, self.report, self.conversation = result, result.report, result.conversation
         self._show_conversation()
         self.plan_button.setEnabled(True)
+        self.findings.clear()
         if result.spec is not None:                     # shown even when not ready, so the question has context
             self._show_spec(result.spec)
             self._show_findings(result.spec, result.report)
         if not result.ready:
+            self.show_conversation_panel(True)         # a question: the exchange so far is the context
             # Not ready to run: Claude asked something, explained what is in the way, or wants a choice confirmed
             # before it marks its plan ready. Ask the person in a popup: an answer continues the same
             # conversation, Abort ends the planning.
@@ -321,6 +356,8 @@ class Window(QMainWindow):
                 self.findings.setText(self.findings.text() + "<br>Planning stopped: no plan ready to run.")
                 self.set_state("planning stopped")
             return
+        if not self.opened_by_person:
+            self.show_conversation_panel(False)        # a plan ready: the plan is what matters now
         self.run_button.setEnabled(not self.demo_deck.isChecked())
         self.set_state("planned: review, then run" if not self.demo_deck.isChecked() else "planned (demo deck)")
 
