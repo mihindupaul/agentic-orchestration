@@ -28,7 +28,7 @@ One prompt to the AI agent, three workflows planned from it, running at the same
 Side by side on the simulated workcell: the traditional run does flow 1 on its own, the AI-optimized run does all
 three flows together.
 
-![Side by side mid-run: the traditional run has finished its 4 vials, the AI-optimized run is still working through 12 vials on the same arm](docs/media/02-race-midrun.png)
+https://github.com/user-attachments/assets/27596fc6-7301-4037-9c60-302a8f8093b3
 
 ![Result: 2.1 times the throughput, 2.79 against 5.95 vials per minute; three times the vials in 1.4 times the time](docs/media/03-result.png)
 

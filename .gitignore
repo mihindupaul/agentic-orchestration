@@ -17,3 +17,8 @@ ros2/docker/recordings/
 
 # secrets (API keys): never commit
 .env
+
+# demo videos are hosted as GitHub attachments, not kept in the repository
+docs/media/*.mp4
+docs/media/*.mov
+docs/media/*.webm
