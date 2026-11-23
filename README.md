@@ -20,21 +20,6 @@ the cell: the deck file (where each bay, well and station is), labware operation
 scanner", and a small service that owns the hardware and runs one operation at a time. Rack jobs are not in the
 controller: they are Orca workflows built from its operations.
 
-## Traditional vs AI-optimized
-One prompt to the AI agent, three workflows planned from it, running at the same time on one shared arm:
-
-![The prompt given to the AI agent, and the three flows it plans from it: heat column 6, scan and weigh column 1, move column 12](docs/media/01-prompt.png)
-
-Side by side on the simulated workcell: the traditional run does flow 1 on its own, the AI-optimized run does all
-three flows together.
-
-https://github.com/user-attachments/assets/27596fc6-7301-4037-9c60-302a8f8093b3
-
-![Result: 2.1 times the throughput, 2.79 against 5.95 vials per minute; three times the vials in 1.4 times the time](docs/media/03-result.png)
-
-Both prompts are in [`examples/agent_requests/`](examples/agent_requests/) (`01_traditional`, `02_3_flows`), so the
-comparison can be run again on the simulator.
-
 ## Quick start
 Needs [Docker](https://docs.docker.com/get-docker/) (running), [uv](https://docs.astral.sh/uv/) and an
 [Anthropic API key](https://console.anthropic.com/).
@@ -50,6 +35,21 @@ Between demo runs, `make sim-reset` puts the full rack back in bay 3 and empties
 More: `make test` runs the tests; [`src/agent/README.md`](src/agent/README.md) explains the agent;
 [`docs/orca-integration.md`](docs/orca-integration.md) the hand-written Orca workflows (`make orca-live`);
 [`ros2/vm/README.md`](ros2/vm/README.md) a full VM instead of Docker.
+
+## Traditional vs AI-optimized
+One prompt to the AI agent, three workflows planned from it, running at the same time on one shared arm:
+
+![The prompt given to the AI agent, and the three flows it plans from it: heat column 6, scan and weigh column 1, move column 12](docs/media/01-prompt.png)
+
+Side by side on the simulated workcell: the traditional run does flow 1 on its own, the AI-optimized run does all
+three flows together.
+
+https://github.com/user-attachments/assets/27596fc6-7301-4037-9c60-302a8f8093b3
+
+![Result: 2.1 times the throughput, 2.79 against 5.95 vials per minute; three times the vials in 1.4 times the time](docs/media/03-result.png)
+
+Both prompts are in [`examples/agent_requests/`](examples/agent_requests/) (`01_traditional`, `02_3_flows`), so the
+comparison can be run again on the simulator.
 
 ## Built on Orca
 The workflow layer is [Orca](https://github.com/Cheshire-Labs/orca) by [Cheshire Labs](https://cheshirelabs.io), a lab
