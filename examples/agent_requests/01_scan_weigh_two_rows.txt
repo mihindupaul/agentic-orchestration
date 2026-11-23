@@ -1,4 +1,0 @@
-# One process: the simplest plan.
-# expect: plan
-# Look for: one process, rows A and B of bay 3, steps scan then weigh, destination bay 8.
-Scan and weigh every vial in the first two rows of bay 3, then put each one in the same well of bay 8.

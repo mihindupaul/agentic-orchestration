@@ -1,0 +1,10 @@
+# Demo, part 2 of 2: the same heat job as 01_traditional, plus two more jobs at the same time, each in its own
+# column so the three workflows are easy to tell apart. The agent fills the arm's idle time during each heat with
+# the other vials, so three times the vials take not much longer than 01_traditional alone.
+# Run `make sim-reset` first, so both parts start from the same deck.
+# expect: plan
+# Look for: three processes into bay 8: A6-D6 heat 35 C / 5 s; A1-D1 scan then weigh; A12-D12 no steps (plain move).
+Heat the first four vials of column 6 in bay 3 (A6 to D6) to 35 C, hold each for 5 seconds, then put them in the
+same wells of bay 8. At the same time, scan and weigh the first four vials of column 1 (A1 to D1) and put them in
+the same wells of bay 8, and move the first four vials of column 12 (A12 to D12) straight to the same wells of
+bay 8. Run all three together.

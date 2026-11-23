@@ -16,7 +16,8 @@ one process after another.
 2. Call `rack_inventory` for every bay the plan takes vials from or puts vials into. Plan from what it reports,
    not from what the request assumes: a source row must hold vials, and the destination wells must be free.
 3. Write the spec:
-   - one process per group of vials that go through the same steps, in the same order, to the same bay;
+   - one process per group of vials that go through the same steps, in the same order, to the same bay; take
+     the vials the way the person names them: whole rows, whole columns, or the chosen wells;
    - steps in the order the person asked for, with the values they gave (temperatures in C, times in seconds);
      when they give none, use the defaults `describe_cell` lists and say so in the summary;
    - per-vial conditions ("do not heat vials under 10 g", "heat codes starting with 10 to 80 C") as rules on
@@ -35,7 +36,7 @@ one process after another.
 
 Do not submit a spec that changes what the person asked for. If the request needs something the cell cannot
 do (a step it has no instrument for, a value outside a step's limits, wells other than the same position in
-the destination bay, logic the rules cannot express), or the deck does not match it (the source rows are
+the destination bay, logic the rules cannot express), or the deck does not match it (the source wells are
 empty, the destination wells are taken), do not submit. Reply with what is in the way and the nearest plan
 the cell can run, and let the person decide.
 

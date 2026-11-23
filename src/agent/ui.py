@@ -20,6 +20,7 @@ import json
 import logging
 import os
 import sys
+import time
 
 from PySide6.QtCore import QObject, Qt, QThread, QTimer, Signal
 from PySide6.QtGui import QAction, QFont
@@ -97,6 +98,18 @@ class RunWorker(QThread):
 
     def _submitted(self, runtime, execution_id: str) -> None:
         self.runtime, self.execution_id = runtime, execution_id
+
+    def vials_finished(self) -> int:
+        """Vials that reached their destination: Orca reports their threads as completed."""
+        if self.runner_ready():
+            try:
+                return sum(t.status == "COMPLETED" for t in self.runtime.threads.list(self.execution_id))
+            except Exception:
+                pass
+        return 0
+
+    def runner_ready(self) -> bool:
+        return self.runtime is not None and self.execution_id is not None
 
     def orca_phase(self) -> str:
         """Orca's own phase for this run (accepting, draining, stopping, completed, failed, aborted)."""
@@ -201,10 +214,15 @@ class Window(QMainWindow):
         # run
         self.run_button = QPushButton("Run on the cell", enabled=False, clicked=self.run)
         self.stop_button = QPushButton("Stop", enabled=False, clicked=self.stop)
+        # the run clock: elapsed time, vials at their destination, throughput (counted from Orca's start)
+        self.clock = QLabel("")
+        self.clock.setFont(QFont("Menlo", 13))
+        self.run_started = self.run_finished = None
         buttons = QHBoxLayout()
         for w in (self.run_button, self.stop_button):
             buttons.addWidget(w)
         buttons.addStretch()
+        buttons.addWidget(self.clock)
         # the state and Orca's phase live in the status bar; the state ignores its text width (a long message is
         # cut at the window's edge), so it never makes the window wider
         self.state = QLabel("idle")
@@ -377,7 +395,7 @@ class Window(QMainWindow):
     def _show_spec(self, spec: WorkflowSpec) -> None:
         root = QTreeWidgetItem([f"{spec.name}: {spec.summary}"])
         for p in spec.processes:
-            item = QTreeWidgetItem([f"{p.id}: bay {p.source.bay} rows {p.source.rows} -> bay {p.destination.bay}, "
+            item = QTreeWidgetItem([f"{p.id}: bay {p.source.bay} {p.source.describe()} -> bay {p.destination.bay}, "
                                     f"same wells"])
             for step in p.steps:
                 values = ", ".join(f"{k} {v}" for k, v in step.model_dump(exclude={"op", "rules"}).items())
@@ -428,11 +446,28 @@ class Window(QMainWindow):
         self.stop_button.setEnabled(True)
         self.tabs.setCurrentIndex(1)                    # the Run tab
         self.runner = RunWorker(spec, report.vials, host, port)
-        self.runner.state.connect(lambda s: self.set_state(
-            {"building": "building the Orca system (arm routes)", "running": "running"}.get(s, s)))
+        self.run_started = self.run_finished = None
+        self.clock.setText("")
+        self.runner.state.connect(self._run_state)
         self.runner.ended.connect(self.run_ended)
         self.runner.start()
         self.timer.start()
+
+    def _run_state(self, state: str) -> None:
+        if state == "running":
+            self.run_started = time.monotonic()        # the clock starts when Orca starts, not while it builds
+        if state == "finished" and self.run_started and not self.run_finished:
+            self.run_finished = time.monotonic()
+        self.set_state({"building": "building the Orca system (arm routes)", "running": "running"}.get(state, state))
+
+    def _show_clock(self) -> None:
+        if not self.run_started:
+            return
+        elapsed = (self.run_finished or time.monotonic()) - self.run_started
+        done = self.runner.vials_finished()
+        rate = done / (elapsed / 60) if elapsed > 1 else 0.0
+        self.clock.setText(f"{int(elapsed // 60)}:{int(elapsed % 60):02d}   {done}/{len(self.rows)} vials   "
+                           f"{rate:.1f} vials/min")
 
     def _fill_table(self, spec: WorkflowSpec, report: Report) -> None:
         from .compiler import vial_name
@@ -464,6 +499,7 @@ class Window(QMainWindow):
                 self.table.setItem(row, col, QTableWidgetItem(str(text)))
         if self.state.text().startswith("running"):
             self.set_state(f"running: {done} of {len(self.rows)} vials through their steps")
+        self._show_clock()
 
     def stop(self) -> None:
         if self.runner:
@@ -474,6 +510,8 @@ class Window(QMainWindow):
 
     def run_ended(self, outcome: str, detail: str) -> None:
         self.timer.stop()
+        if self.run_started and not self.run_finished:
+            self.run_finished = time.monotonic()
         self.refresh()
         self.phase.setText(f"Orca: {self.runner.orca_phase()}")
         self.set_state({"completed": "completed", "stopped": "stopped: the heater is off; vials in an instrument "

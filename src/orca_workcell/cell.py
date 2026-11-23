@@ -303,9 +303,9 @@ class Heater(_Station):
 
 
 # ------------------------------------------------------------------------------------------- layout
-def layout(deck: Deck, bays=(3, 8), rows: str | None = None) -> tuple:
-    """Rack-well positions for `bays` (only `rows`, if given) and the arm's teachpoints, from the
-    controller's deck file: returns ({position name: PlatePad}, [Teachpoint]).
+def layout(deck: Deck, bays=(3, 8), rows: str | None = None, wells: set | None = None) -> tuple:
+    """Rack-well positions for `bays` (only `rows`, or only the (bay, well) pairs in `wells`, if given) and the
+    arm's teachpoints, from the controller's deck file: returns ({position name: PlatePad}, [Teachpoint]).
 
     Orca builds a route between every pair of positions an arm can reach, so build time grows with the
     square of the number of positions: teach only the wells the workflows use."""
@@ -322,6 +322,8 @@ def layout(deck: Deck, bays=(3, 8), rows: str | None = None) -> tuple:
     for bay in bays:
         for well in deck.wells(bay):
             if rows and well[0] not in rows:
+                continue
+            if wells is not None and (bay, well) not in wells:
                 continue
             name = well_position(bay, well)
             pads[name] = PlatePad(name)

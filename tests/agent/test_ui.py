@@ -32,7 +32,7 @@ def test_examples_load_into_the_request(window):
     actions = w.load_button.menu().actions()
     assert len(actions) >= 10
     actions[0].trigger()
-    assert w.request.toPlainText().startswith("Scan and weigh every vial in the first two rows")
+    assert w.request.toPlainText().startswith("Heat the first four vials of column 6")
 
 
 def test_a_plan_is_shown_with_its_size_and_the_deck_check(window):
@@ -102,7 +102,7 @@ def test_loading_an_example_clears_the_previous_plan_and_run(window):
     w.run_button.setEnabled(True)
     w.conversation = [{"role": "user", "content": "old"}]
     w.load_button.menu().actions()[1].trigger()
-    assert w.request.toPlainText().startswith("Scan and weigh rows C and E")
+    assert w.request.toPlainText().startswith("Heat the first four vials of column 6") and "column 12" in w.request.toPlainText()
     assert not w.reply.toPlainText() and not w.findings.text() and not w.feed.toPlainText()
     assert w.table.rowCount() == 0 and w.tree.topLevelItemCount() == 0 and not w.run_button.isEnabled()
     assert w.conversation == [] and w.state.text() == "idle"
@@ -162,3 +162,12 @@ def test_a_long_status_does_not_make_the_window_wider(window):
     assert w.minimumSizeHint().width() == narrow
     assert w.state.toolTip().startswith("failed: the controller refused")     # readable in full on hover
     assert w.statusBar().isAncestorOf(w.state) and w.statusBar().isAncestorOf(w.phase)
+
+
+def test_the_run_clock_shows_elapsed_time_vials_and_throughput(window, monkeypatch):
+    w, _ = window
+    w.rows = {f"v{i}": i for i in range(36)}
+    w.runner = SimpleNamespace(vials_finished=lambda: 18)
+    w.run_started, w.run_finished = 100.0, 100.0 + 150.0                         # 2:30 run
+    w._show_clock()
+    assert w.clock.text() == "2:30   18/36 vials   7.2 vials/min"

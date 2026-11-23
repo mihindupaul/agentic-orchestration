@@ -30,6 +30,7 @@ they validate what Claude sends, and they are the input to the validator and com
 from __future__ import annotations
 
 import operator
+import re
 from typing import Annotated, Literal, Union
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
@@ -176,14 +177,55 @@ def decide(step, measured: dict):
 
 # ----------------------------------------------------------------------------------------- places
 
-class Source(_Strict):
-    """Where the vials come from: whole rows of one rack bay."""
-    bay: int = Field(ge=1, le=8, description="Rack bay, 1 to 8.")
-    rows: str = Field(pattern="^[A-H]+$", description='Row letters, e.g. "CE" for rows C and E (12 wells each).')
+WELL_PATTERN = re.compile(r"^[A-H](1[0-2]|[1-9])$")
 
-    def wells(self) -> list[str]:
-        """Every well of the chosen rows, row by row: C1..C12, then E1..E12."""
-        return [f"{row}{col}" for row in self.rows for col in COLUMNS]
+
+class Source(_Strict):
+    """Where the vials come from, in one rack bay: whole rows, whole columns, or chosen wells. Give exactly one."""
+    bay: int = Field(ge=1, le=8, description="Rack bay, 1 to 8.")
+    rows: str | None = Field(None, pattern="^[A-H]+$",
+                             description='Whole rows: row letters, e.g. "CE" for rows C and E (12 wells each).')
+    columns: list[int] | None = Field(None, description="Whole columns: column numbers 1-12, e.g. [1, 12] (8 wells each).")
+    wells: list[str] | None = Field(None, description='Chosen wells, e.g. ["A6", "B6", "C6", "D6"] for the first four '
+                                                      'vials of column 6.')
+
+    @model_validator(mode="after")
+    def _one_kind_of_source(self) -> "Source":
+        given = [k for k in ("rows", "columns", "wells") if getattr(self, k)]
+        if len(given) != 1:
+            raise ValueError(f"give exactly one of rows, columns or wells, got {len(given)} ({', '.join(given) or 'none'})")
+        if self.columns and (any(not 1 <= c <= len(COLUMNS) for c in self.columns) or len(set(self.columns)) < len(self.columns)):
+            raise ValueError(f"columns are 1 to {len(COLUMNS)}, each once")
+        if self.wells:
+            self.wells = [w.upper() for w in self.wells]
+            bad = [w for w in self.wells if not WELL_PATTERN.match(w)]
+            if bad or len(set(self.wells)) < len(self.wells):
+                raise ValueError(f"wells are A1 to H12, each once (not: {', '.join(bad) or 'a repeat'})")
+        return self
+
+    def positions(self) -> list[str]:
+        """Every well this source takes, in order: row by row (C1..C12, E1..E12), column by column (A1..H1,
+        A12..H12), or as listed."""
+        if self.rows:
+            return [f"{row}{col}" for row in self.rows for col in COLUMNS]
+        if self.columns:
+            return [f"{row}{col}" for col in self.columns for row in ROW_LETTERS]
+        return list(self.wells)
+
+    def groups(self) -> list[tuple[str, list[str]]]:
+        """The wells in the groups a person named: ("row C", [...]), ("column 6", [...]) or ("wells", [...])."""
+        if self.rows:
+            return [(f"row {r}", [f"{r}{c}" for c in COLUMNS]) for r in self.rows]
+        if self.columns:
+            return [(f"column {c}", [f"{r}{c}" for r in ROW_LETTERS]) for c in self.columns]
+        return [("wells " + ", ".join(self.wells), list(self.wells))]
+
+    def describe(self) -> str:
+        if self.rows:
+            return f"rows {self.rows}"
+        if self.columns:
+            return "columns " + ", ".join(map(str, self.columns))
+        return "wells " + ", ".join(self.wells)
 
 
 class Destination(_Strict):

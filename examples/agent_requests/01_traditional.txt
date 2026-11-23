@@ -1,0 +1,7 @@
+# Demo, part 1 of 2: the traditional way, one workflow on its own. The heater is the slow step; while each vial
+# heats, the arm has nothing to do. Compare with 02_3_flows: the same job plus two more at the same time.
+# Run `make sim-reset` first, so both parts start from the same deck.
+# expect: plan
+# Look for: one process, wells A6-D6 of bay 3 (the middle column), heat 35 C hold 5 s, destination bay 8.
+Heat the first four vials of column 6 in bay 3 (A6 to D6) to 35 C, hold each for 5 seconds, then put them in the
+same wells of bay 8.

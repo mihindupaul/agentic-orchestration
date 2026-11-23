@@ -163,3 +163,11 @@ def test_a_process_with_no_steps_moves_each_vial_straight_to_the_destination_rac
     events = [e["event"] for e in sim.admin({"cmd": "events"})["events"]]
     assert not any("scan" in e or "weigh" in e or "heat" in e for e in events)   # no instrument was used
     assert len(results) == 12 and all(r["status"] == "done" for r in results.values())
+
+
+def test_the_topology_teaches_only_the_wells_a_plan_uses():
+    plan = WorkflowSpec.model_validate({"name": "t", "summary": "t", "processes": [
+        {"id": "a", "source": {"bay": 3, "wells": ["A1", "B1"]}, "steps": [], "destination": {"bay": 8}},
+        {"id": "b", "source": {"bay": 3, "columns": [12]}, "steps": [], "destination": {"bay": 8}}]})
+    wells = sorted(n for n in build_topology(plan, ControllerConfig()).locations if n.startswith("bay"))
+    assert len(wells) == 2 * (2 + 8) and "bay3_A1" in wells and "bay8_H12" in wells and "bay3_C1" not in wells

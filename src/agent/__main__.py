@@ -13,6 +13,7 @@ needs Orca (.venv-orca) and the controller; the model is not called while the pl
 import argparse
 import json
 import sys
+import time
 
 from .env import load_env
 from .examples import all_examples, find
@@ -104,13 +105,17 @@ def execute(spec, inventory, host: str, port: int, approved: bool) -> None:
     if not approved and input("Run this plan on the cell? [y/N] ").strip().lower() != "y":
         sys.exit("not run")
     plan = compile_spec(spec, ControllerConfig(ctl_host=host, ctl_port=port), report.vials)
-    results = asyncio.run(run(plan))
+    clock = {}
+    results = asyncio.run(run(plan, on_state=lambda s: clock.setdefault(s, time.monotonic())))
     print(json.dumps(results, indent=1))
     counts = {}
     for record in results.values():
         counts[record["status"]] = counts.get(record["status"], 0) + 1
     print(f"\n{len(results)} vials: " + ", ".join(f"{n} {status}" for status, n in sorted(counts.items())),
           file=sys.stderr)
+    elapsed = clock.get("finished", time.monotonic()) - clock.get("running", time.monotonic())
+    print(f"run time {int(elapsed // 60)}:{int(elapsed % 60):02d} ({elapsed:.0f} s), "
+          f"{len(results) / (elapsed / 60):.1f} vials/min (Orca build time not included)", file=sys.stderr)
 
 
 if __name__ == "__main__":

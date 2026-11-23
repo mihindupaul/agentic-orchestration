@@ -48,6 +48,8 @@ CELL = {
              "Outcomes: skip the step, or run it with changed values (scan: tries; heat: celsius, hold_s; "
              "weigh: skip only). The first rule that holds decides. A skipped step is decided "
              "before the vial moves, so the vial does not go to that instrument at all.",
+    "sources": "a process takes vials from one bay: whole rows (row letters), whole columns (numbers 1-12) or "
+               "chosen wells (e.g. A6, B6, C6, D6 for the first four vials of column 6)",
     "destinations": "a vial goes to the same well position in the destination bay. A process with no steps is "
                     "a plain rack-to-rack move: the arm takes each vial straight from its source well there",
 }
@@ -91,7 +93,8 @@ def make_tools(inventory: Inventory, box: PlanBox) -> list:
         rack = inventory.rack(bay)
         occupied = rack["occupied"]
         rows = {row: sum(w[0] == row for w in occupied) for row in ROW_LETTERS}
-        return json.dumps({**rack, "count": len(occupied), "vials_per_row": rows})
+        columns = {col: sum(w[1:] == str(col) for w in occupied) for col in COLUMNS}
+        return json.dumps({**rack, "count": len(occupied), "vials_per_row": rows, "vials_per_column": columns})
 
     def submit_workflow(**spec) -> str:
         box.attempts.append(spec)

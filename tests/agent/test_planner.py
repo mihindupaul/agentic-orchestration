@@ -59,7 +59,7 @@ class ScriptedClient:
 # ------------------------------------------------------------------------------------------- the spec
 def test_the_example_spec_is_valid_and_lists_its_wells():
     spec = WorkflowSpec.model_validate(GOOD_SPEC)
-    assert spec.processes[0].source.wells()[:2] == ["C1", "C2"] and len(spec.processes[0].source.wells()) == 24
+    assert spec.processes[0].source.positions()[:2] == ["C1", "C2"] and len(spec.processes[0].source.positions()) == 24
 
 
 @pytest.mark.parametrize("change", [
@@ -252,3 +252,25 @@ def test_an_accepted_spec_that_is_not_marked_ready_is_not_ready():
                             reply="Planned, but should the heated rows go to bay 8 or bay 7?")
     result = plan_workflow("...", DemoInventory(), client=client)
     assert result.spec is not None and not result.ready
+
+
+# ------------------------------------------------------------------------------------------- sources
+def source(**kw):
+    from agent.spec import Source
+    return Source(bay=3, **kw)
+
+
+def test_a_source_is_rows_columns_or_chosen_wells():
+    assert source(columns=[1, 12]).positions()[:3] == ["A1", "B1", "C1"] and len(source(columns=[1, 12]).positions()) == 16
+    assert source(wells=["a6", "B6"]).positions() == ["A6", "B6"]                     # normalised to upper case
+    assert source(rows="C").describe() == "rows C" and source(columns=[6]).describe() == "columns 6"
+    assert source(columns=[6]).groups()[0] == ("column 6", [f"{r}6" for r in "ABCDEFGH"])
+
+
+@pytest.mark.parametrize("kw, error", [
+    ({}, "exactly one"), ({"rows": "C", "columns": [1]}, "exactly one"), ({"columns": [13]}, "columns are 1 to 12"),
+    ({"columns": [2, 2]}, "each once"), ({"wells": ["I1"]}, "A1 to H12"), ({"wells": ["A1", "A1"]}, "each once"),
+])
+def test_a_source_refuses_what_is_not_a_set_of_wells(kw, error):
+    with pytest.raises(ValidationError, match=error):
+        source(**kw)

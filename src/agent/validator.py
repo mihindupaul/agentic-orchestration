@@ -62,16 +62,15 @@ def validate(spec: WorkflowSpec, inventory: Inventory) -> Report:
         occupied = set(rack(src.bay)["occupied"])
 
         vials = []
-        for row in src.rows:
-            row_wells = [w for w in src.wells() if w[0] == row]
-            here = [w for w in row_wells if w in occupied]
+        for group, group_wells in src.groups():           # a row, a column, or the chosen wells
+            here = [w for w in group_wells if w in occupied]
             if not here:
-                report.errors.append(f"{p.id}: row {row} of bay {src.bay} holds no vials")
-            elif len(here) < len(row_wells):
-                empty = [w for w in row_wells if w not in occupied]
-                report.warnings.append(f"{p.id}: {len(empty)} empty well(s) in row {row} of bay {src.bay} "
+                report.errors.append(f"{p.id}: {group} of bay {src.bay} holds no vials")
+            elif len(here) < len(group_wells):
+                empty = [w for w in group_wells if w not in occupied]
+                report.warnings.append(f"{p.id}: {len(empty)} empty well(s) in {group} of bay {src.bay} "
                                        f"will be skipped ({_short(empty)})")
-            vials += here
+            vials += [w for w in here if w not in vials]
         report.vials[p.id] = vials
 
         for well in vials:

@@ -60,3 +60,13 @@ def test_submit_workflow_returns_deck_errors_for_claude_to_fix():
     with pytest.raises(Exception, match="already hold a vial"):
         submit.call(plan)
     assert box.spec is None
+
+
+def test_column_and_well_sources_are_checked_against_the_deck():
+    deck = DemoInventory({3: [w for w in ALL_WELLS if w not in ("E1", "F1", "G1", "H1")], 8: []})
+    plan = WorkflowSpec.model_validate({"name": "t", "summary": "t", "processes": [
+        {"id": "col", "source": {"bay": 3, "columns": [1]}, "steps": [], "destination": {"bay": 8}},
+        {"id": "pick", "source": {"bay": 3, "wells": ["A6", "B6", "C6", "D6"]}, "steps": [], "destination": {"bay": 8}}]})
+    report = validate(plan, deck)
+    assert report.ok and report.vials == {"col": ["A1", "B1", "C1", "D1"], "pick": ["A6", "B6", "C6", "D6"]}
+    assert report.warnings == ["col: 4 empty well(s) in column 1 of bay 3 will be skipped (E1, F1, G1, H1)"]

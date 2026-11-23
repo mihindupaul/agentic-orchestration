@@ -5,7 +5,8 @@ shapes from data instead of from a file per job:
 
   spec                          Orca
   ---------------------------   ---------------------------------------------------------------------------
-  the bays and rows it uses     the topology: rack wells for just those rows (layout() in cell.py), the arm,
+  the wells it uses             the topology: just those rack wells, in source and destination bays (layout()
+                                in cell.py), the arm,
                                 the code reader, the balance and the heater
   one vial (a well of a source  one thread: starts at its source well (MANUAL_PLACE), ends at the same well of
   row)                          the destination bay (LEAVE_IN_PLACE)
@@ -60,12 +61,14 @@ def vial_name(bay: int, well: str) -> str:
 
 # ------------------------------------------------------------------------------------------- topology
 def build_topology(spec: WorkflowSpec, config: ControllerConfig | None = None, deck: Deck | None = None) -> Topology:
-    """The cell as Orca sees it, with rack wells only for the rows the plan uses, in the bays it uses.
+    """The cell as Orca sees it, with rack positions only for the wells the plan uses: each source well and the
+    same well of its destination bay.
     (Orca builds a route between every pair of positions, so fewer positions build much faster.)"""
     config = config or ControllerConfig.from_env()
     bays = sorted({p.source.bay for p in spec.processes} | {p.destination.bay for p in spec.processes})
-    rows = "".join(sorted({row for p in spec.processes for row in p.source.rows}))
-    pads, teachpoints = layout(deck or Deck.load(), bays=bays, rows=rows)
+    used = {(bay, w) for p in spec.processes for w in p.source.positions()
+            for bay in (p.source.bay, p.destination.bay)}
+    pads, teachpoints = layout(deck or Deck.load(), bays=bays, wells=used)
     return Topology(
         locations={**pads, "code_reader": CodeReader("code_reader", config), "balance": Balance("balance", config),
                    "heater": Heater("heater", config)},
@@ -78,8 +81,8 @@ def compile_workflow(spec: WorkflowSpec, topology: Topology, results: dict,
                      vials: dict | None = None) -> WorkflowTemplate:
     """One Orca workflow for the whole spec: one thread per vial, for every process. `vials` (process id ->
     source wells, from the validator) limits the threads to wells that hold a vial; without it, every well of
-    the source rows gets one."""
-    wells = {p.id: (vials or {}).get(p.id, p.source.wells()) for p in spec.processes}
+    the source gets one."""
+    wells = {p.id: (vials or {}).get(p.id, p.source.positions()) for p in spec.processes}
     devices = {"code_reader": topology.device("code_reader", CodeReader),
                "balance": topology.device("balance", Balance),
                "heater": topology.device("heater", Heater)}
