@@ -20,6 +20,22 @@ the cell: the deck file (where each bay, well and station is), labware operation
 scanner", and a small service that owns the hardware and runs one operation at a time. Rack jobs are not in the
 controller: they are Orca workflows built from its operations.
 
+## Quick start
+Needs [Docker](https://docs.docker.com/get-docker/) (running), [uv](https://docs.astral.sh/uv/) and an
+[Anthropic API key](https://console.anthropic.com/).
+```
+git clone https://github.com/mihindupaul/agentic-orchestration.git && cd agentic-orchestration
+make orca-install                          # Orca, the controller, the agent and its window
+echo "ANTHROPIC_API_KEY=sk-ant-..." > .env # your key (git ignores .env)
+make sim-up sim-view                       # simulator + 3D view in your browser (first build: a few minutes)
+make ctl                                   # the controller; leave it running, and in a second terminal:
+make agent-ui                              # load an example, Plan, then Run on the cell
+```
+Between demo runs, `make sim-reset` puts the full rack back in bay 3 and empties the rest in under a second.
+More: `make test` runs the tests; [`src/agent/README.md`](src/agent/README.md) explains the agent;
+[`docs/orca-integration.md`](docs/orca-integration.md) the hand-written Orca workflows (`make orca-live`);
+[`ros2/vm/README.md`](ros2/vm/README.md) a full VM instead of Docker.
+
 ## Built on Orca
 The workflow layer is [Orca](https://github.com/Cheshire-Labs/orca) by [Cheshire Labs](https://cheshirelabs.io), a lab
 automation scheduler and workflow orchestrator, with its driver layer
@@ -48,22 +64,7 @@ approve, then watch Orca's run state and every vial's status, and stop the run i
 [`src/agent/README.md`](src/agent/README.md) for how it works and why, and
 [`examples/agent_requests/`](examples/agent_requests/) for requests to try.
 
-## Quick start
-Needs [Docker](https://docs.docker.com/get-docker/) (running), [uv](https://docs.astral.sh/uv/) and an
-[Anthropic API key](https://console.anthropic.com/).
-```
-git clone https://github.com/mihindupaul/agentic-orchestration.git && cd agentic-orchestration
-make orca-install                          # Orca, the controller, the agent and its window
-echo "ANTHROPIC_API_KEY=sk-ant-..." > .env # your key (git ignores .env)
-make sim-up sim-view                       # simulator + 3D view in your browser (first build: a few minutes)
-make ctl                                   # the controller; leave it running, and in a second terminal:
-make agent-ui                              # load an example, Plan, then Run on the cell
-```
-Between demo runs, `make sim-reset` puts the full rack back in bay 3 and empties the rest in under a second.
-More: `make test` runs the tests; [`src/agent/README.md`](src/agent/README.md) explains the agent;
-[`docs/orca-integration.md`](docs/orca-integration.md) the hand-written Orca workflows (`make orca-live`);
-[`ros2/vm/README.md`](ros2/vm/README.md) a full VM instead of Docker.
-
+## Status
 Tests cover the simulator, the deck file against the simulated cell, labware operations, the controller service
 (one operation at a time, fault latch, invalid requests, API) and the CLI. Status of each part:
 
