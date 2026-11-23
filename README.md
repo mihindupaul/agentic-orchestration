@@ -1,9 +1,10 @@
-# agentic-orchestration
+# AI agent workflows
 
-Learning to build agentic orchestration, step by step: software in which workflows, and an AI agent that plans
-them, drive machines. The worked example is lab automation: an imaginary sample-handling workcell (SCARA arm,
-balance, code scanner, heated well and eight SBS rack bays), designed from scratch, with a simulator, a
-controller, an Orca driver plug-in and a planning agent.
+From words to work: an AI agent plans a workflow from a request in plain language, and plain code checks it and
+runs it on machines. Built step by step as a learning project in agentic orchestration. The worked example is
+lab automation: an imaginary sample-handling workcell (SCARA arm, balance, barcode scanner, heated well and eight
+SBS rack bays), designed from scratch, with a simulator, a controller, an Orca driver plug-in and the AI planning
+agent.
 
 ```
 "scan and weigh row C, skip the heat under 2 g"
@@ -33,14 +34,14 @@ orchestrate this workcell without changing a line of Orca, and its source and ex
 plug-in. Orca and cheshire-drivers are source-available under the Server Side Public License (SSPL-1.0); this
 repository uses them as dependencies only and includes none of their code.
 
-## The planning agent
-`src/agent` turns a request in plain words into a run on the cell. Claude (through the Claude API and the SDK's
-tool runner) looks at the cell and the deck with a few tools and hands in a **workflow spec**: data, never code,
-built from a fixed menu of steps (scan, weigh, heat) and per-vial rules ("skip the heat for vials under 2 g",
-"heat codes starting with 10 to 80 C"). Plain code does everything that has to be right: it checks the spec
-against the live deck, a person approves it, and a compiler builds the Orca workflow (one thread per vial) that
-runs through the controller. The model is not called while a plan runs. When something is missing, Claude asks
-instead of guessing.
+## The AI planning agent
+`src/agent` is an AI agent that turns a request in plain words into a run on the cell. The AI is Claude, through
+the Claude API and the SDK's tool runner: it looks at the cell and the deck with a few tools and hands in a
+**workflow spec**: data, never code, built from a fixed menu of steps (scan, weigh, heat) and per-vial rules ("skip
+the heat for vials under 2 g", "heat codes starting with 10 to 80 C"). Plain code does everything that has to be
+right: it checks the spec against the live deck, a person approves it, and a compiler builds the Orca workflow (one
+thread per vial) that runs through the controller. The AI plans; it is not called while a plan runs. When something
+is missing, it asks instead of guessing.
 
 A small PySide6 window ties it together for demos: type or load a request, see the plan and the deck check,
 approve, then watch Orca's run state and every vial's status, and stop the run if needed. See
@@ -58,6 +59,7 @@ make sim-up sim-view                       # simulator + 3D view in your browser
 make ctl                                   # the controller; leave it running, and in a second terminal:
 make agent-ui                              # load an example, Plan, then Run on the cell
 ```
+Between demo runs, `make sim-reset` puts the full rack back in bay 3 and empties the rest in under a second.
 More: `make test` runs the tests; [`src/agent/README.md`](src/agent/README.md) explains the agent;
 [`docs/orca-integration.md`](docs/orca-integration.md) the hand-written Orca workflows (`make orca-live`);
 [`ros2/vm/README.md`](ros2/vm/README.md) a full VM instead of Docker.
