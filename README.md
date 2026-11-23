@@ -111,9 +111,7 @@ planned.
    destinations, well mappings other than "the same well".
 7. **Refining an accepted plan** in the window ("make it 50 C"), which the command line can do but the window
    no longer offers.
-8. **An Orca device agent**, so plans could also run through Orca's own daemon and command line (Orca's
-   WebSocket gateway) rather than only embedded in-process.
-9. **An MCP server** over the agent's tools, so other AI clients could plan for the cell too.
+8. **An MCP server** over the agent's tools, so other AI clients could plan for the cell too.
 
 ## Acknowledgements
 Orca builds on the work of the [PyLabRobot](https://github.com/PyLabRobot/pylabrobot) community. The 3D view uses
