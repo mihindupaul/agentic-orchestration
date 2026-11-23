@@ -111,6 +111,12 @@ class Heater:
         self._in_band_s = 0.0
         self._t = clock.now()
 
+    def reset(self) -> None:
+        """Simulator reset (admin): off and back at ambient at once."""
+        self.celsius = self._setpoint = self.spec.ambient_c
+        self.target, self._overshoot, self._plateau, self._in_band_s = None, False, False, 0.0
+        self._t = self.clock.now()
+
     @property
     def state(self) -> str:
         self.update()

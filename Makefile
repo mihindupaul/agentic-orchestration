@@ -9,7 +9,8 @@ CTL_PORT ?= 8700
 # the Python that runs the project: .venv-orca (everything, from make orca-install) if present, else .venv, else python3
 RUN_PY ?= $(firstword $(wildcard .venv-orca/bin/python .venv/bin/python) python3)
 
-.PHONY: install test orca-install orca-sim orca-live orca-test sim-up sim-view sim-down sim-logs sim-record sim ctl demo agent-ui
+.PHONY: install test orca-install orca-sim orca-live orca-test sim-up sim-view sim-down sim-logs sim-record sim ctl demo agent-ui \
+        sim-reset
 install:
 	$(PY) -m pip install -e ".[dev]"
 test:
@@ -25,6 +26,13 @@ sim-logs:
 	$(COMPOSE) logs -f
 sim-record:     # record the view straight from the container display: make sim-record SECS=60 NAME=take1
 	ros2/docker/record.sh $(or $(SECS),30) $(or $(NAME),clip)
+sim-reset:      # fresh demo deck in a running simulator (container or VM: SIM_HOST=...), no restart; then the controller is reset too
+	@printf '{"cmd": "reset"}\n' | nc -w 3 $(SIM_HOST) 9000 | grep -q '"ok": true' \
+	  && echo "simulator reset: full rack in bay 3, empty rack in bay 8, heater off, arm home" \
+	  || { echo "no simulator answered on $(SIM_HOST):9000"; exit 1; }
+	@if nc -z 127.0.0.1 $(CTL_PORT) 2>/dev/null; then \
+	  $(RUN_PY) -m workcell_controller --api-port $(CTL_PORT) do clear_fault >/dev/null && echo "controller on :$(CTL_PORT) ready"; \
+	fi
 sim:            # no container, no view: the simulator alone on this machine, 20x faster than real time
 	$(RUN_PY) -m workcell_sim --time-scale 20 --demo-racks
 UV ?= uv

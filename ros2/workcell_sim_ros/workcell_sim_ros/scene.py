@@ -47,7 +47,7 @@ HEATER_RIM = (0.98, 0.55, 0.10, 1.0)        # orange
 HEAT_GLOW = (1.0, 0.45, 0.05, 0.55)         # heating toward the target
 HEAT_STABLE = (1.0, 0.25, 0.05, 0.75)       # at the target
 
-MODE_NAMES = {4: "DISABLED", 5: "IDLE", 7: "RUNNING", 9: "ERROR", 11: "COLLISION"}
+MODE_NAMES = {4: "disabled", 5: "idle", 7: "running", 9: "error", 11: "collision"}
 
 
 # --------------------------------------------------------------------------- URDF
@@ -131,13 +131,25 @@ def snapshot(sim) -> dict:
         "error": fb["error"],
         "gripper_closed": arm.gripper_closed,
         "held": None if w.held is None else {"heated": w.held.peak_c is not None, "barcode": w.held.barcode},
-        "pan": None if pan is None else {"heated": pan.peak_c is not None},
-        "in_heater": None if w.in_heater is None else {"heated": w.in_heater.peak_c is not None},
+        # A vial standing in a station is drawn where the gripper let it go (its release height).
+        "pan": None if pan is None else {"heated": pan.peak_c is not None, "z": w.set_down_z["balance"]},
+        "in_scanner": _set_down(w, "scanner"),
+        "in_heater": _set_down(w, "heater"),
         "balance_g": (pan.gross_g if pan else 0.0) - sim.balance.tare_g,
         "scanner_busy": sim.scanner.busy,
         "heater": sim.heater_state(),
         "racks": racks,
     }
+
+
+def rack_type(lay: Layout) -> str:
+    """What is printed on a rack: its format, from the layout, e.g. 'SBS 96 (8x12)'."""
+    return f"SBS {lay.n_rows * lay.n_cols} ({lay.n_rows}x{lay.n_cols})"
+
+
+def _set_down(w, station: str) -> dict | None:
+    vial = w.in_well[station]
+    return None if vial is None else {"heated": vial.peak_c is not None, "z": w.set_down_z[station]}
 
 
 def joint_positions(snap: dict) -> list:
@@ -203,7 +215,7 @@ def static_markers(layout: Layout | None = None) -> list:
     out += _well("scanner", sx, sy, (0.85, 0.15, 0.12, 1.0), (0.02, 0.02, 0.02, 1.0), d)
     hx, hy = lay.station_xy("heater")
     out += _well("heater", hx, hy, HEATER_RIM, (0.12, 0.07, 0.05, 1.0), d)
-    labels = {"heater": "heater", "scanner": "code reader", "balance": "balance"}
+    labels = {"heater": "Heater", "scanner": "Barcode scanner", "balance": "Balance"}
     for i, (name, text) in enumerate(labels.items()):
         x, y = lay.station_xy(name)
         out.append(_m("station_labels", i, "text", (x, y - d / 2 - 22, 5), (0, 0, 18), LABEL, text=text))
@@ -241,18 +253,21 @@ def dynamic_markers(snap: dict, layout: Layout | None = None) -> list:
             x = r["cx"] + along * e_l[0] + across * e_s[0]
             y = r["cy"] + along * e_l[1] + across * e_s[1]
             out += _vial("vial_", slot * 1000 + row * lay.n_cols + col, x, y, 0.0, heated)
-        # Rack barcode on the rack's front face, like a printed label.
+        # The rack type on the rack's front face, like a printed label (its barcode stays machine-readable
+        # only: the barcode scanner builds vial codes from it).
         lx, ly = r["cx"] + e_s[0] * (lay.rack_wid / 2 + 2), r["cy"] + e_s[1] * (lay.rack_wid / 2 + 2)
-        out.append(_m("rack_labels", slot, "text", (lx, ly, RACK_H / 2), (0, 0, 14), BLACK, text=r["barcode"]))
+        out.append(_m("rack_labels", slot, "text", (lx, ly, RACK_H / 2), (0, 0, 14), BLACK, text=rack_type(lay)))
 
     if snap["held"]:
         out += _vial("held_", 0, 0, 0, -VIAL_GRIP_DEPTH, snap["held"]["heated"], frame="tool")
-    if snap["pan"]:
-        bx, by = lay.station_xy("balance")
-        out += _vial("pan_", 0, bx, by, 0.0, snap["pan"]["heated"])
-    if snap.get("in_heater"):
-        hx, hy = lay.station_xy("heater")
-        out += _vial("heater_vial_", 0, hx, hy, -VIAL_GRIP_DEPTH, snap["in_heater"]["heated"])
+    # Vials standing in a station: drawn at the height the gripper released them, so nothing jumps when the
+    # gripper lets go or takes the vial again.
+    for key, station, ns in (("pan", "balance", "pan_"), ("in_scanner", "scanner", "scanner_vial_"),
+                             ("in_heater", "heater", "heater_vial_")):
+        vial = snap.get(key)
+        if vial:
+            sx, sy = lay.station_xy(station)
+            out += _vial(ns, 0, sx, sy, vial.get("z", 0.0) - VIAL_GRIP_DEPTH, vial["heated"])
 
     bx, by = lay.station_xy("balance")
     out.append(_m("readouts", 0, "text", (bx + DISPLAY_DX, by + 30, 58), (0, 0, 20), (0.4, 1.0, 0.6, 1.0),
@@ -268,16 +283,16 @@ def dynamic_markers(snap: dict, layout: Layout | None = None) -> list:
     if heater["state"] != "OFF":
         rgba = HEAT_STABLE if heater["state"] == "STABLE" else HEAT_GLOW
         out.append(_m("activity", 2, "cylinder", (hx, hy, 1.2), (lay.station_well_d - 10,) * 2 + (1.2,), rgba))
-        text = f"{heater['celsius']:.1f} C -> {heater['target']:g} C"
+        text = f"{heater['celsius']:.1f} C, target {heater['target']:g} C"   # plain ASCII: RViz's font has no ° or →
     else:
-        text = f"{heater['celsius']:.1f} C  off"
+        text = f"Off, {heater['celsius']:.1f} C"
     # On the open deck beside the well (toward the deck centre): neither the docked arm nor the balance
     # display stands between it and the default camera.
-    out.append(_m("heater_temp", 0, "text", (hx + lay.station_well_d / 2 + 75, hy + 25, 5), (0, 0, 20),
+    out.append(_m("heater_temp", 0, "text", (hx + lay.station_well_d / 2 + 100, hy + 25, 5), (0, 0, 20),
                   HEATER_RIM if heater["state"] == "HEATING" else TEXT, text=text))
 
     mode = MODE_NAMES.get(snap["mode"], str(snap["mode"]))
-    text = f"arm {mode}" if not snap["error"] else f"arm {mode}: {snap['error']}"
+    text = f"Arm: {mode}" if not snap["error"] else f"Arm: {mode} ({snap['error']})"
     out.append(_m("status", 0, "text", (0, lay.deck_back_y + lay.deck_size - 60, 12), (0, 0, 24),
                   WARN if snap["mode"] in (9, 11) else TEXT, text=text))
     return out

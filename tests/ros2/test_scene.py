@@ -98,9 +98,9 @@ def test_heater_label_follows_the_heater_state():
     _, snap = _snapshot()
     label = lambda: next(m for m in scene.dynamic_markers(snap) if m["ns"] == "heater_temp")   # noqa: E731
     glow = lambda: [m for m in scene.dynamic_markers(snap) if m["ns"] == "activity" and m["id"] == 2]   # noqa: E731
-    assert label()["text"] == "22.0 C  off" and not glow()
+    assert label()["text"] == "Off, 22.0 C" and not glow()
     snap["heater"] = {"celsius": 41.26, "target": 60.0, "state": "HEATING"}
-    assert label()["text"] == "41.3 C -> 60 C" and label()["rgba"] == scene.HEATER_RIM
+    assert label()["text"] == "41.3 C, target 60 C" and label()["rgba"] == scene.HEATER_RIM
     assert glow()[0]["rgba"] == scene.HEAT_GLOW
     snap["heater"] = {"celsius": 60.0, "target": 60.0, "state": "STABLE"}
     assert glow()[0]["rgba"] == scene.HEAT_STABLE and label()["rgba"] == scene.TEXT
@@ -134,3 +134,44 @@ def test_snapshot_runs_while_the_simulator_is_live():
         finally:
             await sim.stop()
     asyncio.run(main())
+
+
+def test_a_vial_set_down_in_any_station_stays_visible_exactly_where_the_gripper_left_it():
+    """Code reader, heater and balance: the vial is drawn at the station from the moment it is let go, at the
+    height it was released at, so nothing disappears or jumps between the gripper and the station."""
+    for station, ns in (("scanner", "scanner_vial_body"), ("heater", "heater_vial_body"), ("balance", "pan_body")):
+        def set_down(sim, station=station):
+            vial = sim.world.racks[1].wells.pop((0, 0))
+            sim.world.held = vial
+            x, y = sim.layout.station_xy(station)
+            assert sim.world.release((x, y, 20.0, 0.0)).startswith("placed")    # released at grip height
+        sim, snap = _snapshot(set_down)
+        body = [m for m in scene.dynamic_markers(snap) if m["ns"] == ns]
+        assert len(body) == 1, f"no vial drawn in the {station}"
+        x, y = sim.layout.station_xy(station)
+        bottom = 20.0 - scene.VIAL_GRIP_DEPTH                     # where the held vial's bottom was
+        body_h = scene.VIAL_H - scene.CAP_H
+        assert math.isclose(body[0]["xyz"][0] * 1000, x, abs_tol=0.01)
+        assert math.isclose(body[0]["xyz"][1] * 1000, y, abs_tol=0.01)
+        assert math.isclose(body[0]["xyz"][2] * 1000, bottom + body_h / 2, abs_tol=0.01)
+
+
+def test_racks_are_labelled_with_their_type_not_their_barcode():
+    sim, snap = _snapshot()
+    labels = [m for m in scene.dynamic_markers(snap) if m["ns"] == "rack_labels"]
+    assert labels and all(m["text"] == "SBS 96 (8x12)" for m in labels)
+    assert snap["racks"][0]["barcode"] == "RACK001" or any(r["barcode"] == "RACK001" for r in snap["racks"])
+
+
+def test_station_labels():
+    texts = {m["text"] for m in scene.static_markers() if m["ns"] == "station_labels"}
+    assert texts == {"Barcode scanner", "Heater", "Balance"}
+
+
+def test_every_label_is_plain_ascii_because_the_rviz_font_has_no_symbols():
+    """RViz draws ° → · and similar characters as gaps, so every text marker must be plain ASCII."""
+    def heating(sim):
+        sim.heater.target = 60.0
+    sim, snap = _snapshot(heating)
+    texts = [m["text"] for m in scene.static_markers() + scene.dynamic_markers(snap) if m["type"] == "text"]
+    assert texts and all(t.isascii() for t in texts), [t for t in texts if not t.isascii()]

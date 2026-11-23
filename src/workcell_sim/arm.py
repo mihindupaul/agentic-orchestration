@@ -66,6 +66,14 @@ class Arm:
         self.mode = MODE_DISABLED
         return OK
 
+    def reset(self) -> None:
+        """Simulator reset (admin): queued moves dropped, the arm back at home, open, disabled, no error."""
+        self._flush()
+        self.pose = list(self.layout.home)
+        self.gripper_closed = False
+        self._enabled = False
+        self.mode, self.error_id, self.error_msg = MODE_DISABLED, 0, ""
+
     def clear_error(self) -> int:
         self.error_id, self.error_msg = 0, ""
         self.mode = MODE_IDLE if self._enabled else MODE_DISABLED

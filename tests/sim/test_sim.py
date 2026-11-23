@@ -289,3 +289,39 @@ def test_bays_and_wells_fit_the_deck_without_overlap():
         for slot, (x0, x1, y0, y1) in boxes.items():
             nx, ny = min(max(sx, x0), x1), min(max(sy, y0), y1)
             assert math.hypot(sx - nx, sy - ny) >= r, (name, slot)
+
+
+def test_reset_brings_back_the_demo_deck_without_dropping_connections():
+    """The admin reset a demo uses between runs: same ports, same connections, a fresh cell."""
+    async def job(sim, orch):
+        from workcell_sim.world import Vial
+        await orch.goto(0, 215, 100)
+        await orch.goto(0, 215, 30)
+        await orch.sync()
+        await orch.arm("MovL(100,250,30,0)")                                  # collides: arm in error
+        await asyncio.sleep(0.3)
+        assert (await orch.arm("RobotMode()"))[1] == "11"
+        sim.world.held = Vial("x", "x", 1.8)                                  # a vial in the gripper ...
+        sim.world.in_well["heater"] = Vial("y", "y", 1.8)                     # ... and one in the heater
+        await orch.adm(cmd="load_rack", slot=5, barcode="EXTRA", fill=1.0)
+        assert (await orch.heater.ask("SET,80")).startswith("OK")
+        await orch.adm(cmd="inject", fault="scanner_noread", count=3)
+
+        assert (await orch.adm(cmd="reset"))["ok"]
+
+        state = (await orch.adm(cmd="state"))["state"]
+        assert state["arm"]["mode"] == 4 and state["arm"]["error_id"] == 0   # home, disabled, no error
+        assert state["arm"]["pose"][:3] == list(sim.layout.home)[:3] and not state["arm"]["holding"]
+        assert state["heater"] == {"celsius": sim.heater_spec.ambient_c, "target": None, "state": "OFF"}
+        assert state["faults"] == {} or not any(state["faults"].values())
+        assert sim.world.in_well == {"scanner": None, "heater": None}
+        assert len((await orch.adm(cmd="rack_map", slot=3))["occupied"]) == 96
+        assert (await orch.adm(cmd="rack_map", slot=8)) == {"ok": True, "present": True, "barcode": "RACK008",
+                                                            "occupied": []}
+        assert not (await orch.adm(cmd="rack_map", slot=5))["present"]
+        weights = [(await orch.adm(cmd="vial", slot=3, well=w))["vial"]["gross_g"] for w in ("A1", "H12")]
+        await orch.adm(cmd="reset")                                           # the same vials every time
+        assert weights == [(await orch.adm(cmd="vial", slot=3, well=w))["vial"]["gross_g"] for w in ("A1", "H12")]
+        await orch.arm_ok("EnableRobot()")                                    # the same connection still works
+        assert (await orch.arm("MovL(0,215,100,0)"))[0] == 0
+    run(job)

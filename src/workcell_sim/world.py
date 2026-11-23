@@ -51,6 +51,7 @@ class World:
     def __init__(self, layout: Layout, clock, seed: int = 1):
         self.layout = layout
         self.clock = clock
+        self.seed = seed
         self.rng = random.Random(seed)
         self.racks = {}
         for slot, (cx, cy, phi) in layout.rack_bays.items():
@@ -59,6 +60,9 @@ class World:
         self.pan_since: float = 0.0     # sim time the pan load last changed
         # Vials set down in a station well (the arm is free meanwhile). The balance pan is `pan`.
         self.in_well: dict = {"scanner": None, "heater": None}
+        # Gripper height (z) at which each station's vial was let go, so a view draws it exactly where the
+        # gripper left it.
+        self.set_down_z: dict = {"scanner": 0.0, "heater": 0.0, "balance": 0.0}
         self.held: Optional[Vial] = None
         self.events: list = []
 
@@ -95,6 +99,17 @@ class World:
                 empty_g=round(self.rng.uniform(1.70, 1.90), 5),
                 content_g=round(content_g if content_g is not None else self.rng.uniform(0.0, 0.5), 5))
         self.log("rack_loaded", slot=slot, barcode=barcode, vials=len(rack.wells))
+
+    def clear(self) -> None:
+        """Every rack removed, nothing in the gripper, on the pan or in a station well; the vial weights start
+        from the same random sequence again, so a reloaded deck gets the same vials."""
+        for slot in self.racks:
+            self.racks[slot].present, self.racks[slot].barcode, self.racks[slot].wells = False, "", {}
+        self.held = self.pan = None
+        self.in_well = {"scanner": None, "heater": None}
+        self.set_down_z = {"scanner": 0.0, "heater": 0.0, "balance": 0.0}
+        self.rng = random.Random(self.seed)
+        self.log("world_cleared")
 
     def remove_rack(self, slot: int) -> None:
         rack = self.racks[slot]
@@ -171,13 +186,13 @@ class World:
             return "nothing_held"
         if z <= self.layout.grip_z_max:
             if self.station_at(x, y) == "balance" and self.pan is None:
-                self.pan, self.held = v, None
+                self.pan, self.held, self.set_down_z["balance"] = v, None, z
                 self.pan_since = self.clock.now()
                 self.log("place", dst="balance", vial=v.vid)
                 return "placed_balance"
             station = self.station_at(x, y)
             if station in self.in_well and self.in_well[station] is None:
-                self.in_well[station], self.held = v, None
+                self.in_well[station], self.held, self.set_down_z[station] = v, None, z
                 self.log("place", dst=station, vial=v.vid)
                 return f"placed_{station}"
             hit = self.locate(x, y)

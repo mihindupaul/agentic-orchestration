@@ -98,6 +98,18 @@ class Simulator:
             "faults": self.faults.pending(),
         }
 
+    def reset(self) -> None:
+        """Back to how the simulator starts with demo racks, without restarting it: connections stay open.
+        Full rack in bay 3, empty rack in bay 8; nothing in the gripper or an instrument; heater off at
+        ambient; arm at home, disabled, no error; no injected faults; balance untared."""
+        self.arm.reset()
+        self.world.clear()
+        load_demo_racks(self.world)
+        self.heater.reset()
+        self.balance.tare_g = 0.0
+        self.faults.clear()
+        self.world.log("reset")
+
     # ------------------------------------------------------------------ admin
     def admin(self, req: dict) -> dict:
         """Simulator-only back door: what an operator does by hand (load racks), fault injection, and
@@ -115,6 +127,9 @@ class Simulator:
         if cmd == "inject":
             self.faults.inject(req["fault"], req.get("count", 1))
             return {"ok": True, "pending": self.faults.pending()}
+        if cmd == "reset":
+            self.reset()
+            return {"ok": True}
         if cmd == "clear_faults":
             self.faults.clear()
             return {"ok": True}
