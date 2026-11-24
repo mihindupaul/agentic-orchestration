@@ -123,6 +123,16 @@ def test_diff_sends_only_changes():
     assert not changed and {ns for ns, _ in deleted} == {"vial_body", "vial_cap"}
 
 
+def test_a_full_resend_still_deletes_the_vials_that_are_gone():
+    """Every few seconds all markers are resent; a vial removed in that same tick (a reset) must still go."""
+    _, snap = _snapshot()
+    _, _, shown = scene.diff({}, scene.dynamic_markers(snap))
+    snap["racks"][0]["vials"] = []
+    markers = scene.dynamic_markers(snap)
+    changed, deleted, _ = scene.diff(shown, markers, full=True)
+    assert len(changed) == len(markers) and {ns for ns, _ in deleted} == {"vial_body", "vial_cap"}
+
+
 def test_snapshot_runs_while_the_simulator_is_live():
     async def main():
         sim = Simulator(timing=Timing(time_scale=5000.0))

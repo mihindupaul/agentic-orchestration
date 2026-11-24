@@ -104,10 +104,10 @@ class SimNode(Node):
             scene.snapshot(self.sim), json.dumps(self.sim.state()), self.sim.world.events[self._events_sent:]))
         markers = scene.dynamic_markers(snap, self.sim.layout)
         self._since_full += self._scene_period
-        if self._since_full >= FULL_REFRESH_S:
+        full = self._since_full >= FULL_REFRESH_S
+        if full:
             self._since_full = 0.0
-            self._shown = {}
-        changed, deleted, self._shown = scene.diff(self._shown, markers)
+        changed, deleted, self._shown = scene.diff(self._shown, markers, full=full)
         if changed or deleted:
             arr = self._array(changed)
             for ns, mid in deleted:

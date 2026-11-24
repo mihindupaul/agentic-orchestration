@@ -298,10 +298,12 @@ def dynamic_markers(snap: dict, layout: Layout | None = None) -> list:
     return out
 
 
-def diff(previous: dict, markers: list) -> tuple:
-    """Return (changed, deleted_keys, current) so only differences go over the wire."""
+def diff(previous: dict, markers: list, full: bool = False) -> tuple:
+    """Return (changed, deleted_keys, current) so only differences go over the wire. `full` resends every
+    marker (for a late RViz) but still deletes the ones that are gone: forgetting `previous` instead would
+    leave a vial that vanished in that same tick (a reset clears whole racks) drawn for good."""
     current = {(m["ns"], m["id"]): m for m in markers}
-    changed = [m for k, m in current.items() if previous.get(k) != m]
+    changed = list(current.values()) if full else [m for k, m in current.items() if previous.get(k) != m]
     deleted = [k for k in previous if k not in current]
     return changed, deleted, current
 
