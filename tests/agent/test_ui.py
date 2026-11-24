@@ -47,7 +47,7 @@ def test_a_plan_is_shown_with_its_size_and_the_deck_check(window):
     w._fill_table(spec, report)
     assert "12 vials, up to 48 arm moves, 0 to 12 heater visits" in w.findings.text()
     assert w.tree.topLevelItem(0).child(0).child(2).child(0).text(0) == "if grams < 2.0: skip"
-    assert w.table.rowCount() == 12 and w.table.item(0, 0).text() == "bay 3 C1"
+    assert w.table.rowCount() == 12 and w.table.item(0, 0).text() == "bay 3 C1 -> bay 8 C1"
 
 
 def test_the_feed_shows_moves_and_warnings_but_not_orca_noise(window):
@@ -171,3 +171,14 @@ def test_the_run_clock_shows_elapsed_time_vials_and_throughput(window, monkeypat
     w.run_started, w.run_finished = 100.0, 100.0 + 150.0                         # 2:30 run
     w._show_clock()
     assert w.clock.text() == "2:30   18/36 vials   7.2 vials/min"
+
+
+def test_a_completed_run_can_run_again(window):
+    """A swap undoes itself on a second run; Run checks the deck again before each run anyway."""
+    w, _ = window
+    w.runner = SimpleNamespace(plan=None, orca_phase=lambda: "completed", vials_finished=lambda: 8)
+    w.run_started, w.run_finished = 100.0, 160.0
+    w.run_ended("completed", "")
+    assert w.run_button.isEnabled() and w.run_button.text() == "Run again"
+    w.run_ended("failed", "the controller refused")
+    assert w.run_button.isEnabled() and w.run_button.text() == "Run on the cell"

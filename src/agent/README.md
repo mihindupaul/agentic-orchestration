@@ -26,7 +26,7 @@ Built step by step:
 | `inventory.py` | where the deck state comes from: the live controller, or a fixed demo deck |
 | `tools.py` | what Claude may call while planning: `describe_cell`, `rack_inventory`, `submit_workflow`, `mark_plan_ready` |
 | `planner.py` | the Claude API call (the SDK's tool runner), the checks on its result, the conversation |
-| `validator.py` | the spec against the deck: racks present, vials there, destination wells free, no sharing |
+| `validator.py` | the spec against the deck: racks present, vials there, destination wells free or emptied, no sharing, transit wells for swaps |
 | `compiler.py` | spec -> Orca topology and workflow, one thread per vial; evaluates the rules; runs it |
 | `ui.py` | the window (PySide6) |
 | `__main__.py` | the command line |
@@ -70,8 +70,18 @@ have finished (an event the previous action emits), then decides in plain code, 
 that skips the heat never goes to the heater. Growing what the agent can express means adding a test or an
 outcome in code, once, for every plan after it.
 
-**The compiler is plain code** (`compiler.py`): the spec's bays and rows become the Orca topology, each vial a
-thread from its source well to the same well of the destination bay, each step an action at its instrument.
+**Vials go where the person says.** A destination is a bay (the source bay too) and the same wells, other rows,
+other columns or chosen wells, paired with the source in order. A destination well may hold a vial now if the
+plan moves that vial away: Orca does not put a vial into a well until the one there has been picked, and a vial
+whose destination is still full waits, before its first step, until that vial has left (otherwise the two could
+block each other at an instrument). A swap ("row A with row H") is a cycle no waiting can solve: one vial of each
+cycle has to stand somewhere else first. Claude picks those **transit wells** from `rack_inventory` (empty, and
+used by nothing else in the plan) and lists them in the spec; the validator checks them and gives one to each
+cycle, and that vial parks there (`orca.park`) before its steps. Without enough transit wells the spec comes back
+to Claude with the cycles named.
+
+**The compiler is plain code** (`compiler.py`): the spec's bays and wells become the Orca topology, each vial a
+thread from its source well to its destination well, each step an action at its instrument.
 The plan of the two hand-written workflows compiles to the same vial journeys (tested). When a plan heats to
 more than one temperature, the heater cools to the lowest one before the next vial goes in, and it is switched
 off when the run ends.
@@ -111,10 +121,11 @@ make ctl      # the controller service (SIM_HOST=192.168.64.4 for the VM)
 .venv-orca/bin/python -m agent "scan and weigh row C of bay 3, then bay 8" --run   # plan, approve, run
 ```
 
-**The window:** type a request or load an example, then **Plan**. The Plan tab shows the conversation, the plan
+**The window:** type a request or load an example, then **Start planning**. The Plan tab shows the conversation, the plan
 as a tree (steps and their rules) and the job size and deck check. **Run on the cell** asks for approval, then
 the Run tab shows Orca's phase for the run, every vial's status (code, grams, temperature, the rule that
-decided) and a feed of what Orca does. **Stop** uses Orca's operator stop and switches the heater off; a vial in
+decided) and a feed of what Orca does. After a completed run, **Run again** runs the same plan once more (a swap swaps back);
+the deck is checked first, so a plan that no longer fits (its source wells now empty) is refused with the reason. **Stop** uses Orca's operator stop and switches the heater off; a vial in
 an instrument or the gripper at that moment stays there. **Demo deck** plans without the controller (no run).
 
 **Example requests** live as text files in [`examples/agent_requests/`](../../examples/agent_requests/):

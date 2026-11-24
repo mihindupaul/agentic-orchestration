@@ -104,7 +104,7 @@ def execute(spec, inventory, host: str, port: int, approved: bool) -> None:
         sys.exit("not run: the deck no longer fits the plan")
     if not approved and input("Run this plan on the cell? [y/N] ").strip().lower() != "y":
         sys.exit("not run")
-    plan = compile_spec(spec, ControllerConfig(ctl_host=host, ctl_port=port), report.vials)
+    plan = compile_spec(spec, ControllerConfig(ctl_host=host, ctl_port=port), report)
     clock = {}
     results = asyncio.run(run(plan, on_state=lambda s: clock.setdefault(s, time.monotonic())))
     print(json.dumps(results, indent=1))

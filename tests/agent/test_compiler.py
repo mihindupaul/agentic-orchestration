@@ -171,3 +171,60 @@ def test_the_topology_teaches_only_the_wells_a_plan_uses():
         {"id": "b", "source": {"bay": 3, "columns": [12]}, "steps": [], "destination": {"bay": 8}}]})
     wells = sorted(n for n in build_topology(plan, ControllerConfig()).locations if n.startswith("bay"))
     assert len(wells) == 2 * (2 + 8) and "bay3_A1" in wells and "bay8_H12" in wells and "bay3_C1" not in wells
+
+
+# ------------------------------------------------------------------------- destination wells and transit wells
+def moves(*processes, transit=()) -> WorkflowSpec:
+    """moves((id, source wells, destination wells, steps), ..., transit=[well]): all in bay 3."""
+    return WorkflowSpec.model_validate({
+        "name": "moves", "summary": "test", "transit": [{"bay": 3, "well": w} for w in transit],
+        "processes": [{"id": pid, "source": {"bay": 3, "wells": src}, "steps": steps,
+                       "destination": {"bay": 3, "wells": dst}} for pid, src, dst, steps in processes]})
+
+
+SWAP_AND_CHAIN = moves(("a_to_h", ["A1", "A2"], ["H1", "H2"], [{"op": "scan"}]),
+                       ("h_to_a", ["H1", "H2"], ["A1", "A2"], [{"op": "scan"}]),
+                       ("chain", ["C1", "D1"], ["D1", "E1"], [{"op": "scan"}]),     # D1 moves on to a free E1
+                       transit=["F1", "F2"])
+
+
+def test_the_topology_teaches_destination_and_transit_wells():
+    wells = sorted(n for n in build_topology(SWAP_AND_CHAIN, ControllerConfig()).locations if n.startswith("bay"))
+    assert wells == sorted(f"bay3_{w}" for w in ("A1", "A2", "H1", "H2", "C1", "D1", "E1", "F1", "F2"))
+
+
+def test_vials_swap_rows_through_transit_wells_and_a_chain_waits_for_its_well(caplog):
+    """A1 <-> H1 and A2 <-> H2 swap (A1 and A2 wait in F1 and F2), C1 -> D1 while D1 -> E1; every vial is scanned.
+    The simulator's vials keep their codes, so the code in each well afterwards shows where each vial went."""
+    import logging
+
+    from agent.validator import validate
+    caplog.set_level(logging.INFO)                         # Orca reports a deadlock rescue at INFO
+
+    async def go():
+        sim = Simulator(timing=Timing(time_scale=5000.0))
+        ports = await sim.start(ports=FREE)
+        sim.admin({"cmd": "load_rack", "slot": 3, "barcode": "RK", "fill": ["A1", "A2", "H1", "H2", "C1", "D1"]})
+        ctl = await Controller("127.0.0.1", ports).start()
+        server = await serve(ctl, "127.0.0.1", 0)
+        try:
+            config = ControllerConfig(ctl_port=server.sockets[0].getsockname()[1])
+            from agent.inventory import ControllerInventory
+            report = await asyncio.to_thread(validate, SWAP_AND_CHAIN, ControllerInventory(port=config.ctl_port))
+            assert report.ok, report.text()
+            plan = compile_spec(SWAP_AND_CHAIN, config, report)
+            results = await asyncio.wait_for(run(plan), 240)
+        finally:
+            server.close()
+            await ctl.stop()
+            await sim.stop()
+        return sim, results
+
+    sim, results = asyncio.run(go())
+    code = {w: sim.admin({"cmd": "vial", "slot": 3, "well": w}).get("vial", {}).get("barcode")
+            for w in ("A1", "A2", "H1", "H2", "C1", "D1", "E1", "F1", "F2")}
+    assert code == {"A1": "RK-H1", "A2": "RK-H2", "H1": "RK-A1", "H2": "RK-A2",
+                    "C1": None, "D1": "RK-C1", "E1": "RK-D1", "F1": None, "F2": None}
+    assert results[vial_name(3, "A1")]["via"] == "bay 3 F1" and "via" not in results[vial_name(3, "H1")]
+    assert all(r["status"] == "done" for r in results.values())
+    assert "Deadlock resolution" not in caplog.text          # the plan's own order, not Orca's rescue

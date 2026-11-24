@@ -40,7 +40,7 @@ def test_an_empty_row_is_an_error_and_gaps_in_a_row_are_skipped_with_a_warning()
 def test_taken_destination_wells_are_an_error_unless_the_vial_goes_back_to_its_own_well():
     deck = DemoInventory({3: list(ALL_WELLS), 8: ["A1", "A2"]})
     assert validate(spec(("a", 3, "A", 8)), deck).errors == [
-        "a: 2 destination well(s) in bay 8 already hold a vial (A1, A2)"]
+        "a: 2 destination well(s) in bay 8 hold a vial the plan does not move away (A1, A2)"]
     assert validate(spec(("a", 3, "A", 3)), deck).ok                 # back to the well it came from
 
 
@@ -57,7 +57,7 @@ def test_submit_workflow_returns_deck_errors_for_claude_to_fix():
     box = PlanBox()
     submit = {t.name: t for t in make_tools(DemoInventory({3: list(ALL_WELLS), 8: ["C1"]}), box)}["submit_workflow"]
     plan = json.loads(spec(("a", 3, "C", 8)).model_dump_json())
-    with pytest.raises(Exception, match="already hold a vial"):
+    with pytest.raises(Exception, match="hold a vial the plan does not move away"):
         submit.call(plan)
     assert box.spec is None
 
@@ -70,3 +70,65 @@ def test_column_and_well_sources_are_checked_against_the_deck():
     report = validate(plan, deck)
     assert report.ok and report.vials == {"col": ["A1", "B1", "C1", "D1"], "pick": ["A6", "B6", "C6", "D6"]}
     assert report.warnings == ["col: 4 empty well(s) in column 1 of bay 3 will be skipped (E1, F1, G1, H1)"]
+
+
+# ------------------------------------------------------------------------- destination wells and transit wells
+def plan(*processes, transit=()) -> WorkflowSpec:
+    """plan((id, source, destination), ..., transit=[(bay, well)]): plain moves."""
+    return WorkflowSpec.model_validate({"name": "t", "summary": "t",
+                                        "transit": [{"bay": b, "well": w} for b, w in transit],
+                                        "processes": [{"id": pid, "source": src, "steps": [], "destination": dst}
+                                                      for pid, src, dst in processes]})
+
+
+def test_destination_rows_columns_and_wells_pair_with_the_source():
+    rows, cols, wells = plan(("r", {"bay": 3, "rows": "AB"}, {"bay": 3, "rows": "GH"}),
+                             ("c", {"bay": 3, "columns": [1]}, {"bay": 8, "columns": [12]}),
+                             ("w", {"bay": 4, "wells": ["A1", "B1"]}, {"bay": 4, "wells": ["H12", "H11"]})).processes
+    assert rows.pairs()[:2] == [("A1", "G1"), ("A2", "G2")] and rows.pairs()[12] == ("B1", "H1")
+    assert cols.pairs()[0] == ("A1", "A12") and cols.pairs()[7] == ("H1", "H12")
+    assert wells.pairs() == [("A1", "H12"), ("B1", "H11")]
+    assert rows.destination.describe() == "bay 3 rows GH"
+
+
+@pytest.mark.parametrize("src, dst, message", [
+    ({"rows": "AB"}, {"rows": "H"}, "one row per source row"),
+    ({"rows": "A"}, {"columns": [1]}, "need a source given as columns"),
+    ({"wells": ["A1", "A2"]}, {"wells": ["B1"]}, "one well per source well"),
+    ({"wells": ["A1", "A2"]}, {"wells": ["B1", "B1"]}, "same destination well"),
+])
+def test_a_destination_that_does_not_fit_its_source_is_rejected(src, dst, message):
+    with pytest.raises(ValueError, match=message):
+        plan(("p", {"bay": 3, **src}, {"bay": 3, **dst}))
+
+
+def test_a_destination_well_may_hold_a_vial_the_plan_moves_away():
+    deck = DemoInventory({3: ["A1", "B1"]})
+    chain = plan(("p", {"bay": 3, "wells": ["A1", "B1"]}, {"bay": 3, "wells": ["B1", "C1"]}))
+    report = validate(chain, deck)
+    assert report.ok and not report.routes and report.moves == {"p": [("A1", "B1"), ("B1", "C1")]}
+
+
+def test_a_swap_needs_one_free_transit_well_per_cycle():
+    deck = DemoInventory({3: [f"{r}{c}" for r in "AH" for c in range(1, 13)]})
+    swap = (("a_to_h", {"bay": 3, "rows": "A"}, {"bay": 3, "rows": "H"}),
+            ("h_to_a", {"bay": 3, "rows": "H"}, {"bay": 3, "rows": "A"}))
+    report = validate(plan(*swap), deck)
+    assert len(report.errors) == 1
+    assert report.errors[0].startswith("12 set(s) of moves form a cycle (bay 3 A1 -> bay 3 H1 -> back;")
+    assert "add 12 more to transit" in report.errors[0]
+
+    transit = [(3, f"E{c}") for c in range(1, 13)]
+    report = validate(plan(*swap, transit=transit), deck)
+    assert report.ok and len(report.routes) == 12
+    assert report.routes[(3, "A1")] == (3, "E1") and (3, "H1") not in report.routes   # one vial per cycle waits
+
+
+def test_a_transit_well_must_be_free_and_unused_by_the_plan():
+    deck = DemoInventory({3: ["A1", "H1", "D4"], 5: []})
+    swap = (("x", {"bay": 3, "wells": ["A1"]}, {"bay": 3, "wells": ["H1"]}),
+            ("y", {"bay": 3, "wells": ["H1"]}, {"bay": 3, "wells": ["A1"]}))
+    assert "transit well bay 3 D4 holds a vial" in validate(plan(*swap, transit=[(3, "D4")]), deck).text()
+    assert "is a source or destination" in validate(plan(*swap, transit=[(3, "A1")]), deck).text()
+    assert "bay 6 has no rack" in validate(plan(*swap, transit=[(6, "A1")]), deck).text()
+    assert validate(plan(*swap, transit=[(3, "E1")]), deck).ok

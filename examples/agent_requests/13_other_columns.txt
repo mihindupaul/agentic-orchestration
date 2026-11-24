@@ -1,0 +1,5 @@
+# Other wells than the same position: scan each vial on the way from column 1 of bay 3 to column 12 of bay 8.
+# expect: plan
+# Look for: one process from bay 3 column 1 to bay 8 column 12 (destination columns [12]), one scan step, no
+# transit wells (no cycle). Against the live deck, check that column 12 of bay 8 is free.
+Scan the vials in column 1 of bay 3 and put them into column 12 of bay 8, same rows.

@@ -1,0 +1,5 @@
+# A swap inside one rack: every vial of row A trades places with the vial of row H in the same column.
+# expect: plan
+# Look for: two processes in bay 3 (rows A -> H and H -> A), and 12 transit wells: free wells the agent found
+# with rack_inventory (in bay 8 on the demo deck, since bay 3 is full), named in the summary.
+Swap the first row of vials in bay 3 with the last row.

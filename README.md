@@ -29,7 +29,7 @@ make orca-install                          # Orca, the controller, the agent and
 echo "ANTHROPIC_API_KEY=sk-ant-..." > .env # your key (git ignores .env)
 make sim-up sim-view                       # simulator + 3D view in your browser (first build: a few minutes)
 make ctl                                   # the controller; leave it running, and in a second terminal:
-make agent-ui                              # load an example, Plan, then Run on the cell
+make agent-ui                              # load an example, Start planning, then Run on the cell
 ```
 Between demo runs, `make sim-reset` puts the full rack back in bay 3 and empties the rest in under a second.
 More: `make test` runs the tests; [`src/agent/README.md`](src/agent/README.md) explains the agent;
@@ -66,7 +66,8 @@ repository uses them as dependencies only and includes none of their code.
 `src/agent` is an AI agent that turns a request in plain words into a run on the cell. The AI is Claude, through
 the Claude API and the SDK's tool runner: it looks at the cell and the deck with a few tools and hands in a
 **workflow spec**: data, never code, built from a fixed menu of steps (scan, weigh, heat) and per-vial rules ("skip
-the heat for vials under 2 g", "heat codes starting with 10 to 80 C"). Plain code does everything that has to be
+the heat for vials under 2 g", "heat codes starting with 10 to 80 C"), with vials going to the wells the person
+names, in another rack or the same one ("swap row A with row H"). Plain code does everything that has to be
 right: it checks the spec against the live deck, a person approves it, and a compiler builds the Orca workflow (one
 thread per vial) that runs through the controller. The AI plans; it is not called while a plan runs. When something
 is missing, it asks instead of guessing.
@@ -107,8 +108,8 @@ planned.
 4. **A time estimate before a run**, from operation timings measured on the simulator, shown with the job size.
 5. **Recovery after a stop.** A stopped run leaves a vial in an instrument or the gripper; a recovery step would
    find it and put it back.
-6. **A richer rule vocabulary**: comparing a vial with the others (above the row average), per-vial
-   destinations, well mappings other than "the same well".
+6. **A richer rule vocabulary**: comparing a vial with the others (above the row average), and destinations a
+   rule decides per vial (heavy vials to another rack).
 7. **Refining an accepted plan** in the window ("make it 50 C"), which the command line can do but the window
    no longer offers.
 8. **An MCP server** over the agent's tools, so other AI clients could plan for the cell too.

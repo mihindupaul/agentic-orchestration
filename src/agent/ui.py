@@ -71,9 +71,9 @@ class RunWorker(QThread):
     state = Signal(str)                                # building / running / finished
     ended = Signal(str, str)                           # outcome (completed / stopped / failed), detail
 
-    def __init__(self, spec: WorkflowSpec, vials: dict, host: str, port: int):
+    def __init__(self, spec: WorkflowSpec, report: Report, host: str, port: int):
         super().__init__()
-        self.spec, self.vials, self.host, self.port = spec, vials, host, port
+        self.spec, self.report, self.host, self.port = spec, report, host, port
         self.plan = self.loop = self.task = self.runtime = self.execution_id = None
         self.stopping = False
 
@@ -85,7 +85,7 @@ class RunWorker(QThread):
         self.loop = asyncio.new_event_loop()
         asyncio.set_event_loop(self.loop)
         try:
-            self.plan = compile_spec(self.spec, ControllerConfig(ctl_host=self.host, ctl_port=self.port), self.vials)
+            self.plan = compile_spec(self.spec, ControllerConfig(ctl_host=self.host, ctl_port=self.port), self.report)
             self.task = self.loop.create_task(run(self.plan, on_state=self.state.emit, on_submitted=self._submitted))
             self.loop.run_until_complete(self.task)
             self.ended.emit("completed", "")
@@ -188,7 +188,7 @@ class Window(QMainWindow):
                                                       "C of bay 3, then put the vials in the same wells of bay 8.")
         self.load_button = QPushButton("Load example ▾")
         self.load_button.setMenu(self._examples_menu())
-        self.plan_button = QPushButton("Plan", clicked=self.plan)
+        self.plan_button = QPushButton("Start planning", clicked=self.plan)
         self.controller = QLineEdit(f"{os.environ.get('CONTROLLER_HOST', '127.0.0.1')}:"
                                     f"{os.environ.get('CONTROLLER_PORT', '8700')}")
         self.demo_deck = QCheckBox("Demo deck (plan only)")
@@ -376,6 +376,7 @@ class Window(QMainWindow):
             return
         if not self.opened_by_person:
             self.show_conversation_panel(False)        # a plan ready: the plan is what matters now
+        self.run_button.setText("Run on the cell")
         self.run_button.setEnabled(not self.demo_deck.isChecked())
         self.set_state("planned: review, then run" if not self.demo_deck.isChecked() else "planned (demo deck)")
 
@@ -395,8 +396,7 @@ class Window(QMainWindow):
     def _show_spec(self, spec: WorkflowSpec) -> None:
         root = QTreeWidgetItem([f"{spec.name}: {spec.summary}"])
         for p in spec.processes:
-            item = QTreeWidgetItem([f"{p.id}: bay {p.source.bay} {p.source.describe()} -> bay {p.destination.bay}, "
-                                    f"same wells"])
+            item = QTreeWidgetItem([f"{p.id}: bay {p.source.bay} {p.source.describe()} -> {p.destination.describe()}"])
             for step in p.steps:
                 values = ", ".join(f"{k} {v}" for k, v in step.model_dump(exclude={"op", "rules"}).items())
                 s = QTreeWidgetItem([f"{step.op}" + (f" ({values})" if values else "")])
@@ -405,6 +405,9 @@ class Window(QMainWindow):
                     s.addChild(QTreeWidgetItem([f"if {rule.when.describe()}: {then}"]))
                 item.addChild(s)
             root.addChild(item)
+        if spec.transit:
+            root.addChild(QTreeWidgetItem(["transit wells (one vial of each swap waits there): "
+                                           + ", ".join(t.describe() for t in spec.transit)]))
         self.tree.addTopLevelItem(root)
         self.tree.expandAll()
 
@@ -418,6 +421,7 @@ class Window(QMainWindow):
             heater[0] += n * (len(heats) - optional)
             heater[1] += n * len(heats)
             lines.append(f"{p.id}: {n} vials, " + (f"{len(p.steps)} step(s)" if p.steps else "rack-to-rack move"))
+        moves += len(report.routes)                    # a vial going via a transit well moves once more
         size = f"Job size: {sum(len(v) for v in report.vials.values())} vials, up to {moves} arm moves"
         if heater[1]:
             size += (f", {heater[0]}" + (f" to {heater[1]}" if heater[1] != heater[0] else "") + " heater visits")
@@ -445,7 +449,7 @@ class Window(QMainWindow):
         self.plan_button.setEnabled(False)
         self.stop_button.setEnabled(True)
         self.tabs.setCurrentIndex(1)                    # the Run tab
-        self.runner = RunWorker(spec, report.vials, host, port)
+        self.runner = RunWorker(spec, report, host, port)
         self.run_started = self.run_finished = None
         self.clock.setText("")
         self.runner.state.connect(self._run_state)
@@ -474,11 +478,14 @@ class Window(QMainWindow):
         self.table.setRowCount(0)
         self.rows = {}
         for p in spec.processes:
-            for well in report.vials[p.id]:
+            for well, target in report.moves[p.id]:
                 name = vial_name(p.source.bay, well)
+                via = report.routes.get((p.source.bay, well))
+                path = (f"bay {p.source.bay} {well}" + (f" -> (bay {via[0]} {via[1]})" if via else "")
+                        + f" -> bay {p.destination.bay} {target}")
                 self.rows[name] = self.table.rowCount()
                 self.table.insertRow(self.table.rowCount())
-                for col, text in enumerate([f"bay {p.source.bay} {well}", p.id, "waiting"]):
+                for col, text in enumerate([path, p.id, "waiting"]):
                     self.table.setItem(self.rows[name], col, QTableWidgetItem(text))
 
     def refresh(self) -> None:
@@ -519,7 +526,10 @@ class Window(QMainWindow):
         self.say(f"run {outcome}" + (f": {detail}" if detail else ""))
         self.stop_button.setEnabled(False)
         self.plan_button.setEnabled(True)
-        self.run_button.setEnabled(outcome != "completed")
+        # The plan can run again (a swap undoes itself the second time): Run checks the deck again first and
+        # refuses with the reason if the plan no longer fits, e.g. the source wells are now empty.
+        self.run_button.setEnabled(True)
+        self.run_button.setText("Run again" if outcome == "completed" else "Run on the cell")
 
 
 def _num(value, digits: int) -> str:

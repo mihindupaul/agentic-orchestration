@@ -50,8 +50,15 @@ CELL = {
              "before the vial moves, so the vial does not go to that instrument at all.",
     "sources": "a process takes vials from one bay: whole rows (row letters), whole columns (numbers 1-12) or "
                "chosen wells (e.g. A6, B6, C6, D6 for the first four vials of column 6)",
-    "destinations": "a vial goes to the same well position in the destination bay. A process with no steps is "
-                    "a plain rack-to-rack move: the arm takes each vial straight from its source well there",
+    "destinations": "a process puts its vials into one bay, which may be the source bay: the same well "
+                    "positions (default), other rows (one row letter per source row, the column stays), other "
+                    "columns (one number per source column, the row stays) or chosen wells (one per source well, "
+                    "paired in order). A destination well must be free, or hold a vial the plan moves away. A "
+                    "process with no steps is a plain move: the arm takes each vial straight to its destination",
+    "transit": "moves that form a cycle (a swap: row A to row H while row H goes to row A) need a free well "
+               "where one vial of each cycle waits: one transit well per cycle (12 for a swap of two full rows). "
+               "Choose them from rack_inventory: wells that are empty and that no vial of the plan is taken "
+               "from or put into. A chain (A to B while B goes to a free C) needs none",
 }
 
 
@@ -110,6 +117,8 @@ def make_tools(inventory: Inventory, box: PlanBox) -> list:
         box.spec, box.report = checked, report
         box.ready, box.ready_note = False, ""                   # a new spec has to be marked ready again
         moved = ", ".join(f"{pid}: {len(wells)} vials" for pid, wells in report.vials.items())
+        if report.routes:
+            moved += f"; {len(report.routes)} vial(s) wait in a transit well"
         return f"accepted ({moved})" + ("".join(f"\nwarning: {w}" for w in report.warnings))
 
     # The input schema comes from the WorkflowSpec model; the SDK validates Claude's arguments against it before
@@ -120,9 +129,10 @@ def make_tools(inventory: Inventory, box: PlanBox) -> list:
         description=(
             "Hand in the finished workflow spec. Call it once, when the plan is complete and every bay it uses "
             "has been checked with rack_inventory. The spec is checked against the schema and then against the "
-            "deck (racks present, source wells holding vials, destination wells free, no two processes sharing "
-            "wells); if it is rejected, fix what the error says and submit again. Warnings on acceptance (such "
-            "as empty wells that will be skipped) belong in your reply to the person."
+            "deck (racks present, source wells holding vials, destination wells free or emptied by the plan, "
+            "no two processes sharing wells, a free transit well for every cycle of moves); if it is rejected, "
+            "fix what the error says and submit again. Warnings on acceptance (such as empty wells that will be "
+            "skipped) belong in your reply to the person."
         ),
     )
 

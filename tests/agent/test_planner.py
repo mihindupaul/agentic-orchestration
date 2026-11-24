@@ -274,3 +274,23 @@ def test_a_source_is_rows_columns_or_chosen_wells():
 def test_a_source_refuses_what_is_not_a_set_of_wells(kw, error):
     with pytest.raises(ValidationError, match=error):
         source(**kw)
+
+
+def test_a_swap_is_rejected_until_claude_adds_transit_wells():
+    """Swap rows A and H of bay 3: the first submission has no transit wells and comes back with the cycle error;
+    the second names twelve free wells (bay 8 row A) and is accepted."""
+    swap = {"name": "swap_a_h", "summary": "Swap rows A and H of bay 3.", "processes": [
+        {"id": "a_to_h", "source": {"bay": 3, "rows": "A"}, "steps": [], "destination": {"bay": 3, "rows": "H"}},
+        {"id": "h_to_a", "source": {"bay": 3, "rows": "H"}, "steps": [], "destination": {"bay": 3, "rows": "A"}}]}
+    with_transit = {**swap, "transit": [{"bay": 8, "well": f"A{c}"} for c in range(1, 13)]}
+    client = ScriptedClient([
+        [("rack_inventory", {"bay": 3}), ("rack_inventory", {"bay": 8})],
+        [("submit_workflow", swap)],
+        [("submit_workflow", with_transit)],
+        [("mark_plan_ready", {"note": "Rows A and H of bay 3 swap places, via bay 8 row A."})],
+    ])
+    result = plan_workflow("swap the first row of vials with the last row in bay 3", DemoInventory(), client=client)
+    errors = [(text, err) for _, text, err in client.results]
+    assert errors[2][1] and "form a cycle" in str(errors[2][0]) and "add 12 more to transit" in str(errors[2][0])
+    assert result.ready and len(result.report.routes) == 12
+    assert result.report.moves["a_to_h"][0] == ("A1", "H1")

@@ -5,17 +5,25 @@ shapes from data instead of from a file per job:
 
   spec                          Orca
   ---------------------------   ---------------------------------------------------------------------------
-  the wells it uses             the topology: just those rack wells, in source and destination bays (layout()
-                                in cell.py), the arm,
-                                the code reader, the balance and the heater
-  one vial (a well of a source  one thread: starts at its source well (MANUAL_PLACE), ends at the same well of
-  row)                          the destination bay (LEAVE_IN_PLACE)
+  the wells it uses             the topology: just those rack wells (source, destination and transit wells;
+                                layout() in cell.py), the arm, the code reader, the balance and the heater
+  one vial (a well of a source  one thread: starts at its source well (MANUAL_PLACE), ends at its destination
+  row)                          well (LEAVE_IN_PLACE)
   the process's steps           the thread's method: one action per step, at that step's instrument
   values (tries, celsius, ...)  written into the actions; the plan is fixed once it is approved
 
 Orca moves each vial to the instrument of its next action, and schedules every thread of every process over
 the shared hardware, so the processes of a spec run at the same time. What each action finds is recorded per
 vial in `CompiledPlan.results`.
+
+Moves into wells that are full now (a chain, a swap) need two things on top:
+  - Orca waits with a move into a well until the vial there has been picked. That alone is not enough when
+    both vials have steps: a vial waiting in the scanner for its destination blocks the very vial it waits
+    for. So a vial whose destination holds a vial that moves out waits, before its first step, until that
+    vial has left its well (its first action emits "<vial>/left").
+  - a cycle (A1 -> H1, H1 -> A1) would wait forever, so one vial of each cycle first parks in the transit well
+    the plan names (`orca.park`), then goes on with its steps. Nobody waits for that vial: it leaves its well
+    with only the arm, so the waits never form a loop.
 """
 
 from __future__ import annotations
@@ -42,6 +50,7 @@ from orca_workcell.core import ControllerConfig
 from workcell_controller.deck import Deck
 
 from .spec import Heat, Process, Scan, Weigh, WorkflowSpec, decide
+from .validator import Report, cycles
 
 INSTRUMENT = {Scan: "code_reader", Weigh: "balance", Heat: "heater"}      # step -> the Orca device it runs at
 
@@ -61,13 +70,15 @@ def vial_name(bay: int, well: str) -> str:
 
 # ------------------------------------------------------------------------------------------- topology
 def build_topology(spec: WorkflowSpec, config: ControllerConfig | None = None, deck: Deck | None = None) -> Topology:
-    """The cell as Orca sees it, with rack positions only for the wells the plan uses: each source well and the
-    same well of its destination bay.
+    """The cell as Orca sees it, with rack positions only for the wells the plan uses: each source well, its
+    destination well and the transit wells.
     (Orca builds a route between every pair of positions, so fewer positions build much faster.)"""
     config = config or ControllerConfig.from_env()
-    bays = sorted({p.source.bay for p in spec.processes} | {p.destination.bay for p in spec.processes})
-    used = {(bay, w) for p in spec.processes for w in p.source.positions()
-            for bay in (p.source.bay, p.destination.bay)}
+    used = {(t.bay, t.well) for t in spec.transit}
+    for p in spec.processes:
+        for well, target in p.pairs():
+            used |= {(p.source.bay, well), (p.destination.bay, target)}
+    bays = sorted({bay for bay, _ in used})
     pads, teachpoints = layout(deck or Deck.load(), bays=bays, wells=used)
     return Topology(
         locations={**pads, "code_reader": CodeReader("code_reader", config), "balance": Balance("balance", config),
@@ -78,17 +89,32 @@ def build_topology(spec: WorkflowSpec, config: ControllerConfig | None = None, d
 
 # ------------------------------------------------------------------------------------------- workflow
 def compile_workflow(spec: WorkflowSpec, topology: Topology, results: dict,
-                     vials: dict | None = None) -> WorkflowTemplate:
-    """One Orca workflow for the whole spec: one thread per vial, for every process. `vials` (process id ->
-    source wells, from the validator) limits the threads to wells that hold a vial; without it, every well of
-    the source gets one."""
-    wells = {p.id: (vials or {}).get(p.id, p.source.positions()) for p in spec.processes}
+                     report: Report | None = None) -> WorkflowTemplate:
+    """One Orca workflow for the whole spec: one thread per vial, for every process. `report` (the validator's)
+    limits the threads to wells that hold a vial and says which vials go via a transit well; without it, every
+    well of the source gets a thread and the transit wells are given to the cycles in order."""
+    moves = {p.id: report.moves[p.id] if report else p.pairs() for p in spec.processes}
+    by_place = {(p.source.bay, well): p for p in spec.processes for well, _ in moves[p.id]}
+    goes_to = {(p.source.bay, well): (p.destination.bay, target) for p in spec.processes for well, target in moves[p.id]}
+    routes = report.routes if report else {loop[0]: (t.bay, t.well) for loop, t in zip(cycles(goes_to), spec.transit)}
+
+    def wait_for_leaving(source: tuple, process: Process) -> str | None:
+        """The event this vial waits for before its first step: the vial now in its destination well has left."""
+        target = goes_to[source]
+        occupant = by_place.get(target)                # the process of the vial standing there now, if it moves
+        if not occupant or target == source or not process.steps or not occupant.steps or target in routes:
+            return None    # nobody there to wait for, it is this vial, neither can block the other at an
+                           # instrument, or the vial there leaves by parking (waiting for it could loop)
+        return f"{vial_name(*target)}/left"
+
     devices = {"code_reader": topology.device("code_reader", CodeReader),
                "balance": topology.device("balance", Balance),
                "heater": topology.device("heater", Heater)}
     coolest = min(heat_targets(spec), default=None)
-    threads = [vial_thread(process, well, devices, results, coolest)
-               for process in spec.processes for well in wells[process.id]]
+    threads = [vial_thread(process, well, target, devices, results, coolest,
+                           via=routes.get((process.source.bay, well)),
+                           wait_for=wait_for_leaving((process.source.bay, well), process))
+               for process in spec.processes for well, target in moves[process.id]]
 
     def workflow(wf: WorkflowContext):
         for thread in threads:
@@ -103,8 +129,11 @@ def heat_targets(spec: WorkflowSpec) -> set:
             for t in [s.celsius, *(r.then.celsius for r in s.rules if r.then != "skip" and r.then.celsius)]}
 
 
-def vial_thread(process: Process, well: str, devices: dict, results: dict, coolest: float | None):
-    """The thread of one vial: source well -> each step's instrument -> the same well of the destination.
+def vial_thread(process: Process, well: str, target: str, devices: dict, results: dict, coolest: float | None,
+                via: tuple | None = None, wait_for: str | None = None):
+    """The thread of one vial: source well -> (the transit well `via`) -> each step's instrument -> its
+    destination well `target`. With `wait_for`, the first step waits for that event (the vial in the
+    destination well has left it).
 
     Each step is a method of its own, and every way a step can run (as written, or as a rule changes it) is
     built in advance. A step with rules is decided by the thread, in plain code, once the vial's earlier steps
@@ -112,13 +141,17 @@ def vial_thread(process: Process, well: str, devices: dict, results: dict, coole
     vial to that instrument, and a changed step runs with its own values."""
     name = vial_name(process.source.bay, well)
     vial = PlateTemplate(name, labware_type=VIAL_TYPE)
-    record = results.setdefault(name, {"process": process.id, "well": well, "status": "waiting"})
+    record = results.setdefault(name, {"process": process.id, "well": well, "status": "waiting",
+                                       "to": f"bay {process.destination.bay} {target}"})
+    if via:
+        record["via"] = f"bay {via[0]} {via[1]}"
     numbers = itertools.count()                        # Orca needs a unique name for every action and method
 
     def method_for(i: int, step) -> object:
         variant = f"{name}_{i}_{step.op}_{next(numbers)}"
         action = orca.action(device=devices[INSTRUMENT[type(step)]], inputs=[vial])(
-            _named(step_action(step, record, f"{name}/{i}", coolest), variant))
+            _named(step_action(step, record, f"{name}/{i}", coolest, left_event=f"{name}/left" if i == 0 else None),
+                   variant))
 
         async def method(ctx: MethodContext):
             yield action
@@ -131,6 +164,10 @@ def vial_thread(process: Process, well: str, devices: dict, results: dict, coole
                for i, step in enumerate(process.steps)]
 
     async def thread(ctx: ThreadContext):
+        if via:                                        # a cycle: wait in the transit well, so the source is free
+            yield orca.park(well_position(*via))
+        if wait_for:                                   # the vial in our destination has to leave it first
+            await ctx.wait_for(wait_for)
         last_run = None                                # index of the last step this vial went through
         for i, step in enumerate(process.steps):
             rule = None
@@ -147,21 +184,24 @@ def vial_thread(process: Process, well: str, devices: dict, results: dict, coole
             yield methods[i][None if rule is None else id(rule)]
 
     return orca.thread(labware=vial, start=(well_position(process.source.bay, well), MANUAL_PLACE),
-                       end=(well_position(process.destination.bay, well), LEAVE_IN_PLACE))(_named(thread, name))
+                       end=(well_position(process.destination.bay, target), LEAVE_IN_PLACE))(_named(thread, name))
 
 
 def _outcome(rule) -> str:
     return "skip" if rule.then == "skip" else ", ".join(f"{k} {v}" for k, v in rule.then.model_dump(exclude_none=True).items())
 
 
-def step_action(step, record: dict, done_event: str, coolest: float | None):
+def step_action(step, record: dict, done_event: str, coolest: float | None, left_event: str | None = None):
     """The body of one action: what the instrument does with the vial standing in it. It records what it found
     and then emits `done_event`, which a thread waits for before deciding a later step's rules. (Orca reads a
     method one step ahead, so a thread must wait for that event rather than trust the order of its yields:
-    docs/orca-integration.md, lesson 11.)"""
+    docs/orca-integration.md, lesson 11.) The first step also emits `left_event` as it starts: the vial is at
+    the instrument, so its well is free for the vial waiting to go there."""
     body = {Scan: _scan, Weigh: _weigh, Heat: _heat}[type(step)]
 
     async def action(ctx: ActionContext):
+        if left_event:
+            await ctx.emit(left_event)
         if record["status"] == "waiting":
             record["status"] = "running"
         await body(ctx.device(), step, record, coolest)
@@ -211,13 +251,13 @@ async def _until(heater, ready, hold_s: float = 0.0) -> None:
 
 
 # ------------------------------------------------------------------------------------------- the whole plan
-def compile_spec(spec: WorkflowSpec, config: ControllerConfig | None = None, vials: dict | None = None) -> CompiledPlan:
-    """Topology and workflow for `spec`; `vials` from the validator's report. Building them is cheap;
-    `build()` is the slow part."""
+def compile_spec(spec: WorkflowSpec, config: ControllerConfig | None = None, report: Report | None = None) -> CompiledPlan:
+    """Topology and workflow for `spec`, with the validator's `report` on it. Building them is cheap; `build()`
+    is the slow part."""
     config = config or ControllerConfig.from_env()
     topology = build_topology(spec, config)
     results: dict = {}
-    return CompiledPlan(spec, topology, compile_workflow(spec, topology, results, vials), config, results)
+    return CompiledPlan(spec, topology, compile_workflow(spec, topology, results, report), config, results)
 
 
 def finish(plan: CompiledPlan) -> dict:

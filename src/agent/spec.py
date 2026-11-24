@@ -11,14 +11,14 @@ defined here. Later steps check the spec against the live cell (validator), turn
         {"id": "scan_weigh",
          "source": {"bay": 3, "rows": "CE"},
          "steps": [{"op": "scan", "tries": 3}, {"op": "weigh"}],
-         "destination": {"bay": 8, "wells": "same"}},
+         "destination": {"bay": 8}},                        # the same wells of bay 8
         {"id": "heat",
          "source": {"bay": 3, "rows": "DF"},
          "steps": [{"op": "scan"}, {"op": "weigh"},
                    {"op": "heat", "celsius": 40, "hold_s": 20, "rules": [
                        {"when": {"value": "grams", "lt": 10}, "then": "skip"},
                        {"when": {"value": "code", "starts_with": "10"}, "then": {"celsius": 80}}]}],
-         "destination": {"bay": 8, "wells": "same"}}
+         "destination": {"bay": 8, "rows": "GH"}}          # row D to row G, row F to row H
       ]
     }
 
@@ -229,9 +229,51 @@ class Source(_Strict):
 
 
 class Destination(_Strict):
-    """Where the vials end up."""
+    """Where the vials end up: a rack bay (the same one is allowed) and which wells. Give at most one of rows,
+    columns or wells; with none, each vial goes to the same well position it came from."""
+    bay: int = Field(ge=1, le=8, description="Rack bay, 1 to 8; may be the source bay.")
+    rows: str | None = Field(None, pattern="^[A-H]+$", description=(
+        'For a source given as rows: one row letter per source row, in order; each vial keeps its column. '
+        'Source rows "A" with destination rows "H" moves A1 to H1, A2 to H2, ...'))
+    columns: list[int] | None = Field(None, description=(
+        "For a source given as columns: one column number per source column, in order; each vial keeps its row."))
+    wells: Literal["same"] | list[str] | None = Field(None, description=(
+        'For a source given as wells: one destination well per source well, paired in order. "same" (or '
+        'leaving all three out) keeps every vial\'s well position.'))
+
+    @model_validator(mode="after")
+    def _at_most_one_kind(self) -> "Destination":
+        if self.wells == "same":
+            self.wells = None
+        given = [k for k in ("rows", "columns", "wells") if getattr(self, k)]
+        if len(given) > 1:
+            raise ValueError(f"give at most one of rows, columns or wells, got {', '.join(given)}")
+        if self.columns and any(not 1 <= c <= len(COLUMNS) for c in self.columns):
+            raise ValueError(f"columns are 1 to {len(COLUMNS)}")
+        if self.wells:
+            self.wells = [w.upper() for w in self.wells]
+            bad = [w for w in self.wells if not WELL_PATTERN.match(w)]
+            if bad:
+                raise ValueError(f"wells are A1 to H12 (not: {', '.join(bad)})")
+        return self
+
+    def describe(self) -> str:
+        if self.rows:
+            return f"bay {self.bay} rows {self.rows}"
+        if self.columns:
+            return f"bay {self.bay} columns " + ", ".join(map(str, self.columns))
+        if self.wells:
+            return f"bay {self.bay} wells " + ", ".join(self.wells)
+        return f"bay {self.bay}, same wells"
+
+
+class TransitWell(_Strict):
+    """A free well where a vial waits while the vial in its destination moves out (a swap)."""
     bay: int = Field(ge=1, le=8, description="Rack bay, 1 to 8.")
-    wells: Literal["same"] = Field("same", description="Each vial goes to the same well position it came from.")
+    well: str = Field(pattern=WELL_PATTERN.pattern, description='A free well, e.g. "E1".')
+
+    def describe(self) -> str:
+        return f"bay {self.bay} {self.well}"
 
 
 # ----------------------------------------------------------------------------------------- the spec
@@ -257,6 +299,36 @@ class Process(_Strict):
                                      f"step measures, and there is no {needed} before it")
         return self
 
+    @model_validator(mode="after")
+    def _destination_fits_source(self) -> "Process":
+        src, dst = self.source, self.destination
+        for kind, unit in (("rows", "row"), ("columns", "column"), ("wells", "well")):
+            if getattr(dst, kind) is None:
+                continue
+            if getattr(src, kind) is None:
+                raise ValueError(f"destination {kind} need a source given as {kind}: one destination {unit} per "
+                                 f"source {unit}")
+            if len(getattr(dst, kind)) != len(getattr(src, kind)):
+                raise ValueError(f"destination {kind} must name one {unit} per source {unit}: "
+                                 f"{len(getattr(src, kind))} source, {len(getattr(dst, kind))} destination")
+        targets = [w for _, w in self.pairs()]
+        if len(set(targets)) < len(targets):
+            raise ValueError("two vials would go into the same destination well")
+        return self
+
+    def pairs(self) -> list[tuple[str, str]]:
+        """(source well, destination well) for every well the source takes, in the source's order."""
+        src, dst = self.source, self.destination
+        if dst.rows:
+            to_row = dict(zip(src.rows, dst.rows))
+            return [(w, to_row[w[0]] + w[1:]) for w in src.positions()]
+        if dst.columns:
+            to_col = dict(zip(src.columns, dst.columns))
+            return [(w, f"{w[0]}{to_col[int(w[1:])]}") for w in src.positions()]
+        if dst.wells:
+            return list(zip(src.wells, dst.wells))
+        return [(w, w) for w in src.positions()]
+
 
 class WorkflowSpec(_Strict):
     """A whole plan: one or more processes that run at the same time."""
@@ -264,3 +336,7 @@ class WorkflowSpec(_Strict):
     name: str = Field(pattern="^[a-z][a-z0-9_]*$", description='Short name, e.g. "rows_c_to_f".')
     summary: str = Field(description="One or two sentences, for the person approving the plan.")
     processes: list[Process] = Field(min_length=1)
+    transit: list[TransitWell] = Field(default_factory=list, description=(
+        "Only when moves form a cycle (a swap: A1 to H1 while H1 to A1): one free well per cycle, chosen from "
+        "rack_inventory, that no vial of the plan is taken from or put into. One vial of each cycle waits there "
+        "until its destination is free. Leave empty otherwise."))
