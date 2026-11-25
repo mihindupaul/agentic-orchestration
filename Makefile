@@ -28,7 +28,7 @@ sim-record:     # record the view straight from the container display: make sim-
 	ros2/docker/record.sh $(or $(SECS),30) $(or $(NAME),clip)
 sim-reset:      # fresh demo deck in a running simulator (container or VM: SIM_HOST=...), no restart; then the controller is reset too
 	@printf '{"cmd": "reset"}\n' | nc -w 3 $(SIM_HOST) 9000 | grep -q '"ok": true' \
-	  && echo "simulator reset: full rack in bay 3, empty rack in bay 8, heater off, arm home" \
+	  && echo "simulator reset: full racks in bays 3 and 2 (red caps), empty rack in bay 8, heater off, arm home" \
 	  || { echo "no simulator answered on $(SIM_HOST):9000"; exit 1; }
 	@if nc -z 127.0.0.1 $(CTL_PORT) 2>/dev/null; then \
 	  $(RUN_PY) -m workcell_controller --api-port $(CTL_PORT) do clear_fault >/dev/null && echo "controller on :$(CTL_PORT) ready"; \

@@ -185,3 +185,14 @@ def test_every_label_is_plain_ascii_because_the_rviz_font_has_no_symbols():
     sim, snap = _snapshot(heating)
     texts = [m["text"] for m in scene.static_markers() + scene.dynamic_markers(snap) if m["type"] == "text"]
     assert texts and all(t.isascii() for t in texts), [t for t in texts if not t.isascii()]
+
+
+def test_caps_are_drawn_in_the_vials_colour_wherever_the_vial_is():
+    def setup(sim):
+        sim.world.load_rack(2, "RACK002", fill=["A1"], cap="red")
+        sim.world.held = sim.world.racks[1].wells.pop((0, 0))           # a blue one in the gripper
+    sim, snap = _snapshot(setup)
+    caps = {(m["ns"], m["id"]): m["rgba"] for m in scene.dynamic_markers(snap) if m["ns"].endswith("cap")}
+    assert caps[("vial_cap", 2000)] == scene.CAP_COLORS["red"]
+    assert caps[("held_cap", 0)] == scene.CAP
+    assert sum(rgba == scene.CAP for (ns, _), rgba in caps.items() if ns == "vial_cap") == 2

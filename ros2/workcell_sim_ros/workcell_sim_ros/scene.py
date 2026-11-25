@@ -40,6 +40,7 @@ RACK = (0.93, 0.93, 0.95, 0.55)
 VIAL = (0.92, 0.95, 0.97, 0.9)
 VIAL_HEATED = (0.98, 0.85, 0.72, 0.95)     # tint for a vial that has been in the heater
 CAP = (0.15, 0.40, 0.85, 1.0)
+CAP_COLORS = {"blue": CAP, "red": (0.85, 0.12, 0.12, 1.0)}    # Vial.cap -> colour; unknown names draw blue
 TEXT = (0.92, 0.93, 0.95, 1.0)
 WARN = (0.95, 0.30, 0.25, 1.0)
 SCAN_BEAM = (1.0, 0.15, 0.10, 0.45)
@@ -121,7 +122,7 @@ def snapshot(sim) -> dict:
     for slot, r in w.racks.items():
         racks.append({"slot": slot, "cx": r.cx, "cy": r.cy, "phi": r.phi_deg, "present": r.present,
                       "barcode": r.barcode,
-                      "vials": [(row, col, v.peak_c is not None) for (row, col), v in r.wells.items()]})
+                      "vials": [(row, col, v.peak_c is not None, v.cap) for (row, col), v in r.wells.items()]})
     fb = sim.arm_feedback()
     pan = w.pan
     return {
@@ -130,9 +131,11 @@ def snapshot(sim) -> dict:
         "mode": fb["mode"],
         "error": fb["error"],
         "gripper_closed": arm.gripper_closed,
-        "held": None if w.held is None else {"heated": w.held.peak_c is not None, "barcode": w.held.barcode},
+        "held": None if w.held is None else {"heated": w.held.peak_c is not None, "barcode": w.held.barcode,
+                                             "cap": w.held.cap},
         # A vial standing in a station is drawn where the gripper let it go (its release height).
-        "pan": None if pan is None else {"heated": pan.peak_c is not None, "z": w.set_down_z["balance"]},
+        "pan": None if pan is None else {"heated": pan.peak_c is not None, "z": w.set_down_z["balance"],
+                                         "cap": pan.cap},
         "in_scanner": _set_down(w, "scanner"),
         "in_heater": _set_down(w, "heater"),
         "balance_g": (pan.gross_g if pan else 0.0) - sim.balance.tare_g,
@@ -149,7 +152,7 @@ def rack_type(lay: Layout) -> str:
 
 def _set_down(w, station: str) -> dict | None:
     vial = w.in_well[station]
-    return None if vial is None else {"heated": vial.peak_c is not None, "z": w.set_down_z[station]}
+    return None if vial is None else {"heated": vial.peak_c is not None, "z": w.set_down_z[station], "cap": vial.cap}
 
 
 def joint_positions(snap: dict) -> list:
@@ -225,13 +228,13 @@ def static_markers(layout: Layout | None = None) -> list:
     return out
 
 
-def _vial(ns_prefix, mid, x, y, z_bottom, heated, frame="world"):
-    """Body and cap; a vial that has been heated gets a warm tint."""
+def _vial(ns_prefix, mid, x, y, z_bottom, heated, frame="world", cap="blue"):
+    """Body and cap (in the vial's cap colour); a vial that has been heated gets a warm tint."""
     body = VIAL_H - CAP_H
     out = [_m(f"{ns_prefix}body", mid, "cylinder", (x, y, z_bottom + body / 2), (VIAL_D, VIAL_D, body),
               VIAL_HEATED if heated else VIAL, frame=frame),
            _m(f"{ns_prefix}cap", mid, "cylinder", (x, y, z_bottom + body + CAP_H / 2),
-              (VIAL_D + 0.6, VIAL_D + 0.6, CAP_H), CAP, frame=frame)]
+              (VIAL_D + 0.6, VIAL_D + 0.6, CAP_H), CAP_COLORS.get(cap, CAP), frame=frame)]
     return out
 
 
@@ -247,19 +250,20 @@ def dynamic_markers(snap: dict, layout: Layout | None = None) -> list:
                       RACK, yaw=yaw))
         p = math.radians(r["phi"])
         e_l, e_s = (math.sin(p), math.cos(p)), (math.cos(p), -math.sin(p))
-        for row, col, heated in r["vials"]:
+        for row, col, heated, cap in r["vials"]:
             along = (col - (lay.n_cols - 1) / 2) * lay.well_pitch
             across = (row - (lay.n_rows - 1) / 2) * lay.well_pitch
             x = r["cx"] + along * e_l[0] + across * e_s[0]
             y = r["cy"] + along * e_l[1] + across * e_s[1]
-            out += _vial("vial_", slot * 1000 + row * lay.n_cols + col, x, y, 0.0, heated)
+            out += _vial("vial_", slot * 1000 + row * lay.n_cols + col, x, y, 0.0, heated, cap=cap)
         # The rack type on the rack's front face, like a printed label (its barcode stays machine-readable
         # only: the barcode scanner builds vial codes from it).
         lx, ly = r["cx"] + e_s[0] * (lay.rack_wid / 2 + 2), r["cy"] + e_s[1] * (lay.rack_wid / 2 + 2)
         out.append(_m("rack_labels", slot, "text", (lx, ly, RACK_H / 2), (0, 0, 14), BLACK, text=rack_type(lay)))
 
     if snap["held"]:
-        out += _vial("held_", 0, 0, 0, -VIAL_GRIP_DEPTH, snap["held"]["heated"], frame="tool")
+        out += _vial("held_", 0, 0, 0, -VIAL_GRIP_DEPTH, snap["held"]["heated"], frame="tool",
+                     cap=snap["held"].get("cap", "blue"))
     # Vials standing in a station: drawn at the height the gripper released them, so nothing jumps when the
     # gripper lets go or takes the vial again.
     for key, station, ns in (("pan", "balance", "pan_"), ("in_scanner", "scanner", "scanner_vial_"),
@@ -267,7 +271,8 @@ def dynamic_markers(snap: dict, layout: Layout | None = None) -> list:
         vial = snap.get(key)
         if vial:
             sx, sy = lay.station_xy(station)
-            out += _vial(ns, 0, sx, sy, vial.get("z", 0.0) - VIAL_GRIP_DEPTH, vial["heated"])
+            out += _vial(ns, 0, sx, sy, vial.get("z", 0.0) - VIAL_GRIP_DEPTH, vial["heated"],
+                         cap=vial.get("cap", "blue"))
 
     bx, by = lay.station_xy("balance")
     out.append(_m("readouts", 0, "text", (bx + DISPLAY_DX, by + 30, 58), (0, 0, 20), (0.4, 1.0, 0.6, 1.0),

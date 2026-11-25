@@ -25,10 +25,10 @@ class Inventory(Protocol):
 
 
 class DemoInventory:
-    """The simulator's demo deck, fixed: a full rack in bay 3, an empty rack in bay 8, nothing elsewhere."""
+    """The simulator's demo deck, fixed: full racks in bays 2 and 3, an empty rack in bay 8, nothing elsewhere."""
 
     def __init__(self, racks: dict | None = None):
-        self.racks = racks if racks is not None else {3: list(ALL_WELLS), 8: []}
+        self.racks = racks if racks is not None else {2: list(ALL_WELLS), 3: list(ALL_WELLS), 8: []}
 
     def rack(self, bay: int) -> dict:
         if bay not in self.racks:

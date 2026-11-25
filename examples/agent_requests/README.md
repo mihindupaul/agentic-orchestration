@@ -14,5 +14,5 @@ python -m agent --list                      # the examples and what each expects
 python -m agent --example 03 --offline      # run one (by number or name); the API call is real
 ```
 
-`--offline` plans against the demo deck: a full rack in bay 3, an empty one in bay 8, nothing else. Without it
+`--offline` plans against the demo deck: full racks in bays 3 and 2 (red caps), an empty one in bay 8, nothing else. Without it
 the deck comes from the running controller, so an example can expect something the live deck does not have.

@@ -24,6 +24,7 @@ class Vial:
     content_g: float = 0.0
     peak_c: Optional[float] = None  # hottest the vial has been in the heater well, None if never heated
     code_quality: float = 1.0      # below 0.5 the scanner cannot read it
+    cap: str = "blue"              # cap colour, for the 3D view only (see CAP_COLORS in the ROS scene)
 
     @property
     def gross_g(self) -> float:
@@ -79,8 +80,9 @@ class World:
         return (rack.cx + along * e_l[0] + across * e_s[0],
                 rack.cy + along * e_l[1] + across * e_s[1])
 
-    def load_rack(self, slot: int, barcode: str, fill=1.0, content_g=None) -> None:
-        """Operator places a rack. `fill` is a fraction (filled column-major) or a list of well names."""
+    def load_rack(self, slot: int, barcode: str, fill=1.0, content_g=None, cap: str = "blue") -> None:
+        """Operator places a rack. `fill` is a fraction (filled column-major) or a list of well names; `cap` is
+        the cap colour of its vials."""
         rack = self.racks[slot]
         lay = self.layout
         rack.barcode, rack.present, rack.wells = barcode, True, {}
@@ -97,7 +99,7 @@ class World:
             rack.wells[(r, c)] = Vial(
                 vid=code, barcode=code,
                 empty_g=round(self.rng.uniform(1.70, 1.90), 5),
-                content_g=round(content_g if content_g is not None else self.rng.uniform(0.0, 0.5), 5))
+                content_g=round(content_g if content_g is not None else self.rng.uniform(0.0, 0.5), 5), cap=cap)
         self.log("rack_loaded", slot=slot, barcode=barcode, vials=len(rack.wells))
 
     def clear(self) -> None:

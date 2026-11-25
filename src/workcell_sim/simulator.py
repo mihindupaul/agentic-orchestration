@@ -16,13 +16,17 @@ DEFAULT_PORTS = {
     "balance": 5001, "scanner": 5002, "heater": 5003, "admin": 9000,
 }
 
-# Demo setup: a full rack in bay 3 (outer column, clearly visible from the front) and an empty one in bay 8 (diagonally opposite, so moves between them are easy to follow).
-DEMO_SOURCE_SLOT, DEMO_EMPTY_SLOT = 3, 8
+# Demo setup: a full rack in bay 3 (outer column, clearly visible from the front), an empty one in bay 8
+# (diagonally opposite, so moves between them are easy to follow) and a second full rack in bay 2 whose vials
+# have red caps, so they are easy to tell apart from bay 3's blue ones. Bay 2 is loaded last, so bay 3's vials
+# keep the weights they had before it was added.
+DEMO_SOURCE_SLOT, DEMO_EMPTY_SLOT, DEMO_RED_SLOT = 3, 8, 2
 
 
 def load_demo_racks(world) -> None:
     world.load_rack(DEMO_SOURCE_SLOT, f"RACK{DEMO_SOURCE_SLOT:03d}", fill=1.0)
     world.load_rack(DEMO_EMPTY_SLOT, f"RACK{DEMO_EMPTY_SLOT:03d}", fill=0.0)
+    world.load_rack(DEMO_RED_SLOT, f"RACK{DEMO_RED_SLOT:03d}", fill=1.0, cap="red")
 
 
 class Simulator:
@@ -100,8 +104,8 @@ class Simulator:
 
     def reset(self) -> None:
         """Back to how the simulator starts with demo racks, without restarting it: connections stay open.
-        Full rack in bay 3, empty rack in bay 8; nothing in the gripper or an instrument; heater off at
-        ambient; arm at home, disabled, no error; no injected faults; balance untared."""
+        Full racks in bays 3 and 2 (red caps), empty rack in bay 8; nothing in the gripper or an instrument;
+        heater off at ambient; arm at home, disabled, no error; no injected faults; balance untared."""
         self.arm.reset()
         self.world.clear()
         load_demo_racks(self.world)
@@ -119,7 +123,8 @@ class Simulator:
             return {"ok": True, "state": self.state()}
         if cmd == "load_rack":
             self.world.load_rack(int(req["slot"]), str(req["barcode"]),
-                                 fill=req.get("fill", 1.0), content_g=req.get("content_g"))
+                                 fill=req.get("fill", 1.0), content_g=req.get("content_g"),
+                                 cap=str(req.get("cap", "blue")))
             return {"ok": True}
         if cmd == "remove_rack":
             self.world.remove_rack(int(req["slot"]))

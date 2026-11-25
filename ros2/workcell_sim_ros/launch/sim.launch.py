@@ -20,7 +20,7 @@ def generate_launch_description():
     args = [
         DeclareLaunchArgument("host", default_value="0.0.0.0", description="interface for the device ports"),
         DeclareLaunchArgument("time_scale", default_value="1.0", description=">1 runs faster than real time"),
-        DeclareLaunchArgument("demo_racks", default_value="true", description="full rack in bay 3, empty in bay 8"),
+        DeclareLaunchArgument("demo_racks", default_value="true", description="full racks in bays 3 and 2 (red caps), empty in bay 8"),
         DeclareLaunchArgument("rviz", default_value="true"),
     ]
     rviz_config = os.path.join(get_package_share_directory("workcell_sim_ros"), "rviz", "sim.rviz")

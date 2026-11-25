@@ -319,6 +319,9 @@ def test_reset_brings_back_the_demo_deck_without_dropping_connections():
         assert (await orch.adm(cmd="rack_map", slot=8)) == {"ok": True, "present": True, "barcode": "RACK008",
                                                             "occupied": []}
         assert not (await orch.adm(cmd="rack_map", slot=5))["present"]
+        assert len((await orch.adm(cmd="rack_map", slot=2))["occupied"]) == 96          # the red-capped rack
+        assert {v.cap for v in sim.world.racks[2].wells.values()} == {"red"}
+        assert {v.cap for v in sim.world.racks[3].wells.values()} == {"blue"}
         weights = [(await orch.adm(cmd="vial", slot=3, well=w))["vial"]["gross_g"] for w in ("A1", "H12")]
         await orch.adm(cmd="reset")                                           # the same vials every time
         assert weights == [(await orch.adm(cmd="vial", slot=3, well=w))["vial"]["gross_g"] for w in ("A1", "H12")]
