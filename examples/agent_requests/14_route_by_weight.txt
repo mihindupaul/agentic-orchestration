@@ -1,0 +1,6 @@
+# Mid-flight routing: where each vial ends up depends on what it weighed.
+# expect: plan
+# Look for: one process, row C of bay 3, a weigh step, a route "grams > 2.15 -> bay 8, same wells" and
+# destination bay 3 (back to its own well). Demo vials weigh about 1.7 to 2.4 g, so both routes happen.
+Weigh the vials in row C of bay 3. Vials heavier than 2.15 g go to the same wells of bay 8, the others go back
+to where they were.

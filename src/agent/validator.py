@@ -13,12 +13,18 @@ validator asks the inventory and checks what would go wrong on the hardware:
     vials into the same destination wells
   - moves that form a cycle (a swap) without a
     free transit well for each cycle
+  - a well a route may send a vial to is taken,
+    or used by another vial of the plan
 
 A destination well may hold a vial now if the plan moves that vial out: a chain (A1 -> B1 while B1 -> C1)
 runs because Orca does not put a vial into a well until the vial there has been picked. A cycle (A1 -> H1
 while H1 -> A1) cannot: one vial of it has to wait somewhere else first. The agent names those places
 (`spec.transit`, free wells it found with rack_inventory); the validator checks them and assigns one to each
 cycle.
+
+A process with routes decides each vial's destination while it runs, so every well a vial may end in (each
+route's and the default) has to be free now and used by no other vial of the plan, unless it is the vial's own
+well. That keeps vials with routes out of chains and swaps, whose order is fixed before the run.
 
 `submit_workflow` runs it, so Claude gets the errors back and can fix the plan before it is accepted. The
 result also lists the moves of each process, which the compiler builds threads for: only wells that hold a
@@ -42,6 +48,7 @@ class Report:
     vials: dict[str, list[str]] = field(default_factory=dict)       # process id -> the source wells it will move
     moves: dict[str, list[tuple]] = field(default_factory=dict)     # process id -> (source well, destination well)
     routes: dict[Place, Place] = field(default_factory=dict)        # source place -> the transit place it waits in
+    candidates: dict[Place, list] = field(default_factory=dict)     # source place -> every place a route may send it
 
     @property
     def ok(self) -> bool:
@@ -102,6 +109,8 @@ def validate(spec: WorkflowSpec, inventory: Inventory) -> Report:
 
     # A destination well must be free now, or hold a vial the plan moves out (or the very vial going there).
     for p, moves in checked:
+        if p.routes:
+            continue                                       # checked with its routes below
         dst_taken = set(rack(p.destination.bay)["occupied"])
         blocked = [d for s, d in moves if d in dst_taken and (p.destination.bay, d) not in goes_to]
         if blocked:
@@ -111,8 +120,49 @@ def validate(spec: WorkflowSpec, inventory: Inventory) -> Report:
     for (what, bay, one, other), wells in clashes.items():
         report.errors.append(f"{one} and {other} both {what} bay {bay} {_short(wells)}")
 
+    _check_routes(checked, report, rack, goes_to)
     _check_transit(spec, report, rack, goes_to)
     return report
+
+
+def _check_routes(checked: list, report: Report, rack, goes_to: dict[Place, Place]) -> None:
+    """Every place a vial with routes may end in: a rack there, free now, and nobody else's."""
+    for p, moves in checked:
+        if not p.routes:
+            continue
+        for dst in p.candidates():
+            if not rack(dst.bay)["present"]:
+                report.errors.append(f"{p.id}: a route goes to bay {dst.bay}, which has no rack")
+        if not report.ok:
+            return
+        for well, _ in moves:
+            source = (p.source.bay, well)
+            report.candidates[source] = [p.target(well, dst) for dst in p.candidates()]
+    arriving = {dst: src for src, dst in goes_to.items()}  # place -> the vial whose default move ends there
+    claimed: dict[Place, Place] = {}                       # place -> the vial (source place) that may end there
+    for p, moves in checked:
+        if not p.routes:
+            continue
+        taken, shared = [], []
+        for well, _ in moves:
+            source = (p.source.bay, well)
+            for place in dict.fromkeys(report.candidates[source]):
+                if place == source:
+                    continue                               # back to its own well: free once it has left
+                someone_else = (place in goes_to                                   # another vial's source
+                                or arriving.get(place, source) != source           # another vial's destination
+                                or claimed.get(place, source) != source)           # another routed vial's option
+                if place[1] in rack(place[0])["occupied"]:
+                    taken.append(place)
+                elif someone_else:
+                    shared.append(place)
+                claimed.setdefault(place, source)
+        if taken:
+            report.errors.append(f"{p.id}: {len(taken)} well(s) a vial may be sent to hold a vial "
+                                 f"({_short([f'bay {b} {w}' for b, w in taken])}); a vial with routes needs free wells")
+        if shared:
+            report.errors.append(f"{p.id}: {len(shared)} well(s) a vial may be sent to are used by other vials of the "
+                                 f"plan ({_short([f'bay {b} {w}' for b, w in shared])})")
 
 
 def cycles(goes_to: dict[Place, Place]) -> list[list[Place]]:
@@ -135,7 +185,7 @@ def cycles(goes_to: dict[Place, Place]) -> list[list[Place]]:
 
 
 def _check_transit(spec: WorkflowSpec, report: Report, rack, goes_to: dict[Place, Place]) -> None:
-    used = set(goes_to) | set(goes_to.values())
+    used = set(goes_to) | set(goes_to.values()) | {place for options in report.candidates.values() for place in options}
     free = []
     for t in spec.transit:
         place = (t.bay, t.well)

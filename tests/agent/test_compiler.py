@@ -228,3 +228,35 @@ def test_vials_swap_rows_through_transit_wells_and_a_chain_waits_for_its_well(ca
     assert results[vial_name(3, "A1")]["via"] == "bay 3 F1" and "via" not in results[vial_name(3, "H1")]
     assert all(r["status"] == "done" for r in results.values())
     assert "Deadlock resolution" not in caplog.text          # the plan's own order, not Orca's rescue
+
+
+def test_a_route_sends_heavy_vials_to_bay_8_and_the_others_back_to_their_wells():
+    """Weigh C1-C6; over 2 g -> bay 8, otherwise back to the same well of bay 3. Decided in the thread, mid-flight."""
+    plan_spec = WorkflowSpec.model_validate({"name": "route", "summary": "test", "processes": [
+        {"id": "sort", "source": {"bay": 3, "wells": [f"C{c}" for c in range(1, 7)]}, "steps": [{"op": "weigh"}],
+         "routes": [{"when": {"value": "grams", "gt": 2.0}, "then": {"bay": 8}}], "destination": {"bay": 3}}]})
+
+    async def go():
+        sim = Simulator(timing=Timing(time_scale=5000.0))
+        ports = await sim.start(ports=FREE)
+        sim.admin({"cmd": "load_rack", "slot": 3, "barcode": "RK", "fill": [f"C{c}" for c in range(1, 7)]})
+        sim.admin({"cmd": "load_rack", "slot": 8, "barcode": "R8", "fill": []})
+        ctl = await Controller("127.0.0.1", ports).start()
+        server = await serve(ctl, "127.0.0.1", 0)
+        try:
+            plan = compile_spec(plan_spec, ControllerConfig(ctl_port=server.sockets[0].getsockname()[1]))
+            results = await asyncio.wait_for(run(plan), 240)
+        finally:
+            server.close()
+            await ctl.stop()
+            await sim.stop()
+        return sim, results
+
+    sim, results = asyncio.run(go())
+    in_bay = {s: set(sim.admin({"cmd": "rack_map", "slot": s})["occupied"]) for s in (3, 8)}
+    heavy = {r["well"] for r in results.values() if r["grams"] > 2.0}
+    assert heavy and len(heavy) < 6                                   # both routes taken
+    assert in_bay[8] == heavy and in_bay[3] == {f"C{c}" for c in range(1, 7)} - heavy
+    for r in results.values():
+        assert r["to"] == (f"bay 8 {r['well']}" if r["well"] in heavy else f"bay 3 {r['well']}")
+        assert ("rules" in r) == (r["well"] in heavy)                 # the route rule is recorded when it decided

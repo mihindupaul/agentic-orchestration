@@ -132,3 +132,47 @@ def test_a_transit_well_must_be_free_and_unused_by_the_plan():
     assert "is a source or destination" in validate(plan(*swap, transit=[(3, "A1")]), deck).text()
     assert "bay 6 has no rack" in validate(plan(*swap, transit=[(6, "A1")]), deck).text()
     assert validate(plan(*swap, transit=[(3, "E1")]), deck).ok
+
+
+# ------------------------------------------------------------------------- routes: destinations decided per vial
+def routed(dst_bay=8, default=None, steps=({"op": "weigh"},), wells=("C1", "C2")) -> WorkflowSpec:
+    """Weigh the wells of bay 3; grams > 2 -> bay `dst_bay`, otherwise `default` (back to bay 3)."""
+    return WorkflowSpec.model_validate({"name": "t", "summary": "t", "processes": [
+        {"id": "p", "source": {"bay": 3, "wells": list(wells)}, "steps": list(steps),
+         "routes": [{"when": {"value": "grams", "gt": 2}, "then": {"bay": dst_bay}}],
+         "destination": default or {"bay": 3}}]})
+
+
+def test_a_route_decides_where_a_vial_goes_and_falls_back_to_the_destination():
+    from agent.spec import decide_route
+    process = routed().processes[0]
+    assert decide_route(process, {"grams": 2.3})[0].bay == 8
+    assert decide_route(process, {"grams": 1.9}) == (process.destination, None)
+    assert decide_route(process, {}) == (process.destination, None)          # never measured: no route holds
+
+
+def test_a_route_must_test_something_the_process_measures_and_fit_the_source():
+    with pytest.raises(ValueError, match="no weigh step"):
+        routed(steps=[{"op": "scan"}])
+    with pytest.raises(ValueError, match="route 0: destination rows need a source given as rows"):
+        WorkflowSpec.model_validate({"name": "t", "summary": "t", "processes": [
+            {"id": "p", "source": {"bay": 3, "wells": ["C1"]}, "steps": [{"op": "weigh"}],
+             "routes": [{"when": {"value": "grams", "gt": 2}, "then": {"bay": 8, "rows": "H"}}],
+             "destination": {"bay": 3}}]})
+
+
+def test_back_to_its_own_well_is_fine_and_every_route_well_must_be_free():
+    deck = DemoInventory({3: ["C1", "C2"], 8: []})
+    report = validate(routed(), deck)
+    assert report.ok and report.candidates[(3, "C1")] == [(8, "C1"), (3, "C1")]
+    taken = validate(routed(), DemoInventory({3: ["C1", "C2"], 8: ["C2"]}))
+    assert taken.errors == ["p: 1 well(s) a vial may be sent to hold a vial (bay 8 C2); a vial with routes needs "
+                            "free wells"]
+
+
+def test_a_route_well_may_not_be_used_by_another_vial_of_the_plan():
+    deck = DemoInventory({3: ["C1", "C2", "D1"], 8: []})
+    plan = routed()
+    other = {"id": "q", "source": {"bay": 3, "wells": ["D1"]}, "steps": [], "destination": {"bay": 8, "wells": ["C1"]}}
+    clash = WorkflowSpec.model_validate({**plan.model_dump(), "processes": [plan.processes[0].model_dump(), other]})
+    assert "p: 1 well(s) a vial may be sent to are used by other vials of the plan (bay 8 C1)" in validate(clash, deck).errors

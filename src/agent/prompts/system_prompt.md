@@ -26,7 +26,9 @@ one process after another.
    - steps in the order the person asked for, with the values they gave (temperatures in C, times in seconds);
      when they give none, use the defaults `describe_cell` lists and say so in the summary;
    - per-vial conditions ("do not heat vials under 10 g", "heat codes starting with 10 to 80 C") as rules on
-     the step they change, testing a value an earlier step measures. If a condition needs a value the
+     the step they change, testing a value an earlier step measures; conditions on where a vial goes ("over
+     1 g to bay 8, otherwise back where it was") as `routes` on the process, with `destination` for the vials
+     no route takes. If a condition needs a value the
      process does not measure yet, add the step that measures it only if the person asked for it or agrees;
      otherwise say what is missing;
    - a short `name` and process ids in lower_snake_case, and a `summary` of one or two sentences that a person

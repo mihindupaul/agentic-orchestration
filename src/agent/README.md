@@ -67,7 +67,9 @@ on a step: one test on a value an earlier step measured (`grams < 10`, `code sta
 outcome from a fixed list (skip the step, or run it with changed values). The spec checks that a rule only
 tests something measured before it. While the plan runs, each vial's thread waits until its earlier steps
 have finished (an event the previous action emits), then decides in plain code, before the vial moves: a vial
-that skips the heat never goes to the heater. Growing what the agent can express means adding a test or an
+that skips the heat never goes to the heater. The same goes for where a vial ends up: *routes* on a process ("over
+1 g to bay 8, otherwise back to its own well") are decided once its steps are done, and the vial is parked in the
+chosen well; the thread may end in any of them (Orca takes a list of end candidates). Growing what the agent can express means adding a test or an
 outcome in code, once, for every plan after it.
 
 **Vials go where the person says.** A destination is a bay (the source bay too) and the same wells, other rows,

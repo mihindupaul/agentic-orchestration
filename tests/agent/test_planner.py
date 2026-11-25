@@ -294,3 +294,13 @@ def test_a_swap_is_rejected_until_claude_adds_transit_wells():
     assert errors[2][1] and "form a cycle" in str(errors[2][0]) and "add 12 more to transit" in str(errors[2][0])
     assert result.ready and len(result.report.routes) == 12
     assert result.report.moves["a_to_h"][0] == ("A1", "H1")
+
+
+def test_a_spec_with_routes_is_accepted():
+    spec = {"name": "sort_c", "summary": "Weigh row C; over 1 g to bay 8, the rest back.", "processes": [
+        {"id": "sort", "source": {"bay": 3, "rows": "C"}, "steps": [{"op": "weigh"}],
+         "routes": [{"when": {"value": "grams", "gt": 1}, "then": {"bay": 8}}], "destination": {"bay": 3}}]}
+    client = ScriptedClient([[("submit_workflow", spec)], [("mark_plan_ready", {"note": "sort row C"})]])
+    result = plan_workflow("weigh row C; heavier than 1 g to bay 8, otherwise back", DemoInventory(), client=client)
+    assert result.ready and result.spec.processes[0].routes[0].then.bay == 8
+    assert len(result.report.candidates) == 12

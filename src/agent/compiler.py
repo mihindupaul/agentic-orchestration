@@ -24,6 +24,10 @@ Moves into wells that are full now (a chain, a swap) need two things on top:
   - a cycle (A1 -> H1, H1 -> A1) would wait forever, so one vial of each cycle first parks in the transit well
     the plan names (`orca.park`), then goes on with its steps. Nobody waits for that vial: it leaves its well
     with only the arm, so the waits never form a loop.
+
+A process with routes decides each vial's destination mid-flight: the thread may end in any of the route's
+wells (Orca takes a list of end candidates), waits until the vial's last step has measured it, decides in
+plain code, and parks the vial in the chosen well, where the thread then ends.
 """
 
 from __future__ import annotations
@@ -49,7 +53,7 @@ from orca_workcell.deployment.workflows._vials import VIAL_TYPE
 from orca_workcell.core import ControllerConfig
 from workcell_controller.deck import Deck
 
-from .spec import Heat, Process, Scan, Weigh, WorkflowSpec, decide
+from .spec import Heat, Process, Scan, Weigh, WorkflowSpec, decide, decide_route
 from .validator import Report, cycles
 
 INSTRUMENT = {Scan: "code_reader", Weigh: "balance", Heat: "heater"}      # step -> the Orca device it runs at
@@ -76,8 +80,8 @@ def build_topology(spec: WorkflowSpec, config: ControllerConfig | None = None, d
     config = config or ControllerConfig.from_env()
     used = {(t.bay, t.well) for t in spec.transit}
     for p in spec.processes:
-        for well, target in p.pairs():
-            used |= {(p.source.bay, well), (p.destination.bay, target)}
+        for well, _ in p.pairs():
+            used |= {(p.source.bay, well)} | {p.target(well, dst) for dst in p.candidates()}
     bays = sorted({bay for bay, _ in used})
     pads, teachpoints = layout(deck or Deck.load(), bays=bays, wells=used)
     return Topology(
@@ -145,6 +149,9 @@ def vial_thread(process: Process, well: str, target: str, devices: dict, results
                                        "to": f"bay {process.destination.bay} {target}"})
     if via:
         record["via"] = f"bay {via[0]} {via[1]}"
+    if process.routes:
+        record["to"] = "decided after the steps"
+    ends = list(dict.fromkeys(well_position(*process.target(well, dst)) for dst in process.candidates()))
     numbers = itertools.count()                        # Orca needs a unique name for every action and method
 
     def method_for(i: int, step) -> object:
@@ -182,9 +189,18 @@ def vial_thread(process: Process, well: str, target: str, devices: dict, results
                     continue                           # skipped: the vial does not go to this instrument
             last_run = i
             yield methods[i][None if rule is None else id(rule)]
+        if process.routes:                             # where the vial goes, from what its steps measured
+            await ctx.wait_for(f"{name}/{last_run}")
+            destination, route = decide_route(process, record)
+            bay, to = process.target(well, destination)
+            record["to"] = f"bay {bay} {to}"
+            if route is not None:
+                record.setdefault("rules", []).append(f"route: {route.when.describe()} -> {destination.describe()}")
+            yield orca.park(well_position(bay, to))    # the thread ends here: one of its end candidates
 
+    end = ends if process.routes else well_position(process.destination.bay, target)
     return orca.thread(labware=vial, start=(well_position(process.source.bay, well), MANUAL_PLACE),
-                       end=(well_position(process.destination.bay, target), LEAVE_IN_PLACE))(_named(thread, name))
+                       end=(end, LEAVE_IN_PLACE))(_named(thread, name))
 
 
 def _outcome(rule) -> str:

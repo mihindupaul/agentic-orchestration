@@ -182,3 +182,23 @@ def test_a_completed_run_can_run_again(window):
     assert w.run_button.isEnabled() and w.run_button.text() == "Run again"
     w.run_ended("failed", "the controller refused")
     assert w.run_button.isEnabled() and w.run_button.text() == "Run on the cell"
+
+
+def test_routes_show_in_the_plan_and_the_route_fills_in_when_decided(window):
+    w, _ = window
+    spec = WorkflowSpec.model_validate({"name": "t", "summary": "s", "processes": [
+        {"id": "sort", "source": {"bay": 3, "wells": ["C1"]}, "steps": [{"op": "weigh"}],
+         "routes": [{"when": {"value": "grams", "gt": 2}, "then": {"bay": 8}}], "destination": {"bay": 3}}]})
+    report = validate(spec, DemoInventory())
+    w.tree.clear()
+    w._show_spec(spec)
+    w._fill_table(spec, report)
+    process = w.tree.topLevelItem(0).child(0)
+    assert process.text(0) == "sort: bay 3 wells C1 -> routes below, otherwise bay 3, same wells"
+    assert process.child(1).text(0) == "route: if grams > 2.0: bay 8, same wells"
+    assert w.table.item(0, 0).text() == "bay 3 C1 -> (a route decides)"
+    record = {"process": "sort", "well": "C1", "status": "done", "grams": 2.3, "to": "bay 8 C1"}
+    w.runner = SimpleNamespace(plan=SimpleNamespace(results={"vial_bay3_C1": record}), orca_phase=lambda: "running",
+                               vials_finished=lambda: 1)
+    w.refresh()
+    assert w.table.item(0, 0).text() == "bay 3 C1 -> bay 8 C1"

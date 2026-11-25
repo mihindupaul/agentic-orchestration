@@ -278,6 +278,12 @@ class TransitWell(_Strict):
 
 # ----------------------------------------------------------------------------------------- the spec
 
+class RouteRule(_Strict):
+    when: Condition
+    then: Destination = Field(description='Where the vial goes when the condition holds. Back to where it came '
+                                          'from: the source bay, same wells ({"bay": <source bay>}).')
+
+
 class Process(_Strict):
     """One job: take the source vials through the steps, in order, then to the destination."""
     id: str = Field(pattern="^[a-z][a-z0-9_]*$", description='Short name, e.g. "scan_weigh".')
@@ -285,7 +291,12 @@ class Process(_Strict):
     steps: list[Step] = Field(default_factory=list, description=(
         "What happens to each vial, in order. Empty: the vial goes straight from its source well to the same "
         "well of the destination rack, a plain rack-to-rack move."))
-    destination: Destination
+    destination: Destination = Field(description="Where the vials go; with routes, where a vial goes when no route "
+                                                 "holds.")
+    routes: list[RouteRule] = Field(default_factory=list, description=(
+        "Per-vial destinations, decided once the vial's steps are done: checked in order, the first rule whose "
+        "condition holds decides where the vial goes; if none holds, it goes to `destination`. A rule tests a "
+        "value one of the process's steps measures."))
 
     @model_validator(mode="after")
     def _rules_test_values_measured_before(self) -> "Process":
@@ -297,28 +308,35 @@ class Process(_Strict):
                 if needed not in earlier:
                     raise ValueError(f"step {i} ({step.op}): a rule tests {rule.when.value}, which only a {needed} "
                                      f"step measures, and there is no {needed} before it")
+        ops = {s.op for s in self.steps}
+        for i, route in enumerate(self.routes):
+            needed = MEASURED_BY[route.when.value]
+            if needed not in ops:
+                raise ValueError(f"route {i}: tests {route.when.value}, which only a {needed} step measures, and the "
+                                 f"process has no {needed} step")
         return self
 
     @model_validator(mode="after")
-    def _destination_fits_source(self) -> "Process":
-        src, dst = self.source, self.destination
-        for kind, unit in (("rows", "row"), ("columns", "column"), ("wells", "well")):
-            if getattr(dst, kind) is None:
-                continue
-            if getattr(src, kind) is None:
-                raise ValueError(f"destination {kind} need a source given as {kind}: one destination {unit} per "
-                                 f"source {unit}")
-            if len(getattr(dst, kind)) != len(getattr(src, kind)):
-                raise ValueError(f"destination {kind} must name one {unit} per source {unit}: "
-                                 f"{len(getattr(src, kind))} source, {len(getattr(dst, kind))} destination")
-        targets = [w for _, w in self.pairs()]
-        if len(set(targets)) < len(targets):
-            raise ValueError("two vials would go into the same destination well")
+    def _destinations_fit_source(self) -> "Process":
+        for name, dst in [("destination", self.destination)] + [(f"route {i}", r.then) for i, r in enumerate(self.routes)]:
+            for kind, unit in (("rows", "row"), ("columns", "column"), ("wells", "well")):
+                if getattr(dst, kind) is None:
+                    continue
+                if getattr(self.source, kind) is None:
+                    raise ValueError(f"{name}: destination {kind} need a source given as {kind}: one destination "
+                                     f"{unit} per source {unit}")
+                if len(getattr(dst, kind)) != len(getattr(self.source, kind)):
+                    raise ValueError(f"{name}: destination {kind} must name one {unit} per source {unit}: "
+                                     f"{len(getattr(self.source, kind))} source, {len(getattr(dst, kind))} destination")
+            targets = [w for _, w in self.pairs(dst)]
+            if len(set(targets)) < len(targets):
+                raise ValueError(f"{name}: two vials would go into the same destination well")
         return self
 
-    def pairs(self) -> list[tuple[str, str]]:
-        """(source well, destination well) for every well the source takes, in the source's order."""
-        src, dst = self.source, self.destination
+    def pairs(self, destination: Destination | None = None) -> list[tuple[str, str]]:
+        """(source well, destination well) for every well the source takes, in the source's order, for
+        `destination` (default: the process's own)."""
+        src, dst = self.source, destination or self.destination
         if dst.rows:
             to_row = dict(zip(src.rows, dst.rows))
             return [(w, to_row[w[0]] + w[1:]) for w in src.positions()]
@@ -328,6 +346,22 @@ class Process(_Strict):
         if dst.wells:
             return list(zip(src.wells, dst.wells))
         return [(w, w) for w in src.positions()]
+
+    def candidates(self) -> list[Destination]:
+        """Every destination a vial of this process may end in: the routes' and the default one."""
+        return [r.then for r in self.routes] + [self.destination]
+
+    def target(self, well: str, destination: Destination) -> tuple[int, str]:
+        """(bay, well) where the vial from source `well` ends when it goes to `destination`."""
+        return destination.bay, dict(self.pairs(destination))[well]
+
+
+def decide_route(process: Process, measured: dict):
+    """Where a vial goes: (the destination, the route rule that chose it, or None for the default)."""
+    for rule in process.routes:
+        if rule.when.holds(measured):
+            return rule.then, rule
+    return process.destination, None
 
 
 class WorkflowSpec(_Strict):

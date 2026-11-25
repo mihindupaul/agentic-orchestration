@@ -396,7 +396,8 @@ class Window(QMainWindow):
     def _show_spec(self, spec: WorkflowSpec) -> None:
         root = QTreeWidgetItem([f"{spec.name}: {spec.summary}"])
         for p in spec.processes:
-            item = QTreeWidgetItem([f"{p.id}: bay {p.source.bay} {p.source.describe()} -> {p.destination.describe()}"])
+            where = "routes below, otherwise " if p.routes else ""
+            item = QTreeWidgetItem([f"{p.id}: bay {p.source.bay} {p.source.describe()} -> {where}{p.destination.describe()}"])
             for step in p.steps:
                 values = ", ".join(f"{k} {v}" for k, v in step.model_dump(exclude={"op", "rules"}).items())
                 s = QTreeWidgetItem([f"{step.op}" + (f" ({values})" if values else "")])
@@ -404,6 +405,8 @@ class Window(QMainWindow):
                     then = rule.then if rule.then == "skip" else rule.then.model_dump(exclude_none=True)
                     s.addChild(QTreeWidgetItem([f"if {rule.when.describe()}: {then}"]))
                 item.addChild(s)
+            for route in p.routes:
+                item.addChild(QTreeWidgetItem([f"route: if {route.when.describe()}: {route.then.describe()}"]))
             root.addChild(item)
         if spec.transit:
             root.addChild(QTreeWidgetItem(["transit wells (one vial of each swap waits there): "
@@ -482,7 +485,7 @@ class Window(QMainWindow):
                 name = vial_name(p.source.bay, well)
                 via = report.routes.get((p.source.bay, well))
                 path = (f"bay {p.source.bay} {well}" + (f" -> (bay {via[0]} {via[1]})" if via else "")
-                        + f" -> bay {p.destination.bay} {target}")
+                        + (" -> (a route decides)" if p.routes else f" -> bay {p.destination.bay} {target}"))
                 self.rows[name] = self.table.rowCount()
                 self.table.insertRow(self.table.rowCount())
                 for col, text in enumerate([path, p.id, "waiting"]):
@@ -500,6 +503,9 @@ class Window(QMainWindow):
             if row is None:
                 continue
             done += record["status"] in ("done", "no_read")
+            if record.get("to", "").startswith("bay") and "route decides" in self.table.item(row, 0).text():
+                start = self.table.item(row, 0).text().split(" -> ")[0]
+                self.table.setItem(row, 0, QTableWidgetItem(f"{start} -> {record['to']}"))   # decided mid-flight
             values = [record["status"], record.get("code") or "", _num(record.get("grams"), 3),
                       _num(record.get("celsius"), 1), "; ".join(record.get("rules", []))]
             for col, text in enumerate(values, start=2):

@@ -55,6 +55,11 @@ CELL = {
                     "columns (one number per source column, the row stays) or chosen wells (one per source well, "
                     "paired in order). A destination well must be free, or hold a vial the plan moves away. A "
                     "process with no steps is a plain move: the arm takes each vial straight to its destination",
+    "routes": "a process can decide each vial's destination while it runs: routes are rules (the same tests as "
+              "step rules) on a value one of its steps measures, each with a destination; the first that holds "
+              "decides, otherwise the vial goes to the process's destination. Back to where it came from is the "
+              "source bay, same wells. Every well a route may send a vial to must be free now (or the vial's own "
+              "well) and not used by any other vial of the plan",
     "transit": "moves that form a cycle (a swap: row A to row H while row H goes to row A) need a free well "
                "where one vial of each cycle waits: one transit well per cycle (12 for a swap of two full rows). "
                "Choose them from rack_inventory: wells that are empty and that no vial of the plan is taken "
