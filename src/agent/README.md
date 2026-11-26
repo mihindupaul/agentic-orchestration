@@ -16,7 +16,7 @@ Built step by step:
 | 1 | Planner: system prompt + tools + the SDK's tool runner -> `WorkflowSpec` | done |
 | 2 | Compiler: `WorkflowSpec` -> Orca workflow built at runtime, with per-vial rules | done |
 | 3 | Validator: the spec against the live deck, errors Claude can fix | done |
-| 4 | Approval and execution on the simulator (`--run`, the window's Run tab) | done |
+| 4 | Approval and execution on the simulator (`--run`, the window's Run step) | done |
 | 5 | Qt window: request, plan, questions, run, status, stop | done |
 | 6 | Evals: the example requests run as a set, to measure prompt and model changes | next |
 
@@ -123,12 +123,23 @@ make ctl      # the controller service (SIM_HOST=192.168.64.4 for the VM)
 .venv-orca/bin/python -m agent "scan and weigh row C of bay 3, then bay 8" --run   # plan, approve, run
 ```
 
-**The window:** type a request or load an example, then **Start planning**. The Plan tab shows the conversation, the plan
-as a tree (steps and their rules) and the job size and deck check. **Run on the cell** asks for approval, then
-the Run tab shows Orca's phase for the run, every vial's status (code, grams, temperature, the rule that
-decided) and a feed of what Orca does. After a completed run, **Run again** runs the same plan once more (a swap swaps back);
-the deck is checked first, so a plan that no longer fits (its source wells now empty) is refused with the reason. **Stop** uses Orca's operator stop and switches the heater off; a vial in
-an instrument or the gripper at that moment stays there. **Demo deck** plans without the controller (no run).
+**The window** walks through three steps, one page each, with a step bar on top (**1 Describe › 2 Plan › 3 Run**):
+
+1. **Describe**: type a request or load an example, then **Start planning**. Claude's replies show in the
+   conversation below, in order with each tool call it makes (planning is the only time Claude is involved; the
+   Run step's feed is Orca's alone); a question comes up in a popup (OK answers and continues, Abort stops).
+2. **Plan**: opens by itself once Claude marks a plan ready: the plan as a tree (steps, rules, routes), the job
+   size and the deck check. Not right? Click **Describe** in the step bar, change the request and plan again;
+   right: **Go to run**. The step bar switches between the steps at any time.
+3. **Run**: **Run on the cell** asks for approval, checks the deck once more and runs; Orca's phase, every vial's
+   status (code, grams, temperature, the rule or route that decided) and a feed of what Orca does. After a
+   completed run, **Run again** runs the same plan once more (a swap swaps back); the deck is checked first, so a
+   plan that no longer fits is refused with the reason. **Stop** uses Orca's operator stop and switches the heater
+   off; a vial in an instrument or the gripper at that moment stays there.
+
+The **⚙** at the top right sets the controller's host and port and **Demo deck** (plan without the controller;
+such a plan can be reviewed but not run). The pill next to it shows every few seconds whether the controller
+answers: green connected, amber with a fault latched, red not connected, grey demo deck.
 
 **Example requests** live as text files in [`examples/agent_requests/`](../../examples/agent_requests/):
 `python -m agent --list`, then `python -m agent --example 03 --offline`, or **Load example** in the window. Each

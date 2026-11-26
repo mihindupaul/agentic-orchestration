@@ -133,23 +133,38 @@ def test_the_window_shows_its_name_in_the_title_bar_and_on_top(window):
     assert "Words to Work" in w.centralWidget().findChild(QLabel).text()
 
 
-def test_the_conversation_is_folded_away_and_opens_only_when_claude_asks(window, monkeypatch):
+def test_the_window_walks_through_describe_plan_and_run(window, monkeypatch):
+    from agent.ui import DESCRIBE, PLAN, RUN
     w, _ = window
+    w.demo_deck.setChecked(False)
     w.load_button.menu().actions()[0].trigger()
-    assert not w.conversation_toggle.isChecked() and w.reply.isHidden()          # folded by default
+    assert w.pages.currentIndex() == DESCRIBE and w.reachable_steps() == {DESCRIBE}
+    assert not w.step_bar.buttons[PLAN].isEnabled() and not w.to_run.isEnabled()
+
     monkeypatch.setattr(w, "ask_person", lambda question: None)
-    w.planned(_plan_result(ready=False))                                         # a question: opened
-    assert w.conversation_toggle.isChecked() and not w.reply.isHidden()
-    w.planned(_plan_result(ready=True))                                          # a plan ready: folded again
-    assert not w.conversation_toggle.isChecked() and w.reply.isHidden()
+    w.planned(_plan_result(ready=False))                         # a question: still describing
+    assert w.pages.currentIndex() == DESCRIBE and w.reachable_steps() == {DESCRIBE, PLAN}
+
+    w.planned(_plan_result(ready=True))                          # a plan ready: the Plan step opens by itself
+    assert w.pages.currentIndex() == PLAN and w.to_run.isEnabled() and w.step_bar.buttons[RUN].isEnabled()
+    w.to_run.click()
+    assert w.pages.currentIndex() == RUN and w.run_button.isEnabled()
+    w.step_bar.buttons[DESCRIBE].click()                         # back: the step bar
+    assert w.pages.currentIndex() == DESCRIBE
+    w.step_bar.buttons[PLAN].click()                             # the bar moves between steps too
+    assert w.pages.currentIndex() == PLAN
 
 
-def test_a_conversation_opened_by_the_person_stays_open(window):
+def test_a_plan_on_the_demo_deck_can_be_reviewed_but_not_run(window):
+    from agent.ui import PLAN, RUN
     w, _ = window
-    w.load_button.menu().actions()[0].trigger()
-    w.conversation_toggle.click()                                                # opened by hand
-    w.planned(_plan_result(ready=True))
-    assert w.conversation_toggle.isChecked() and not w.reply.isHidden()
+    w.demo_deck.setChecked(True)
+    try:
+        w.planned(_plan_result(ready=True))
+        assert w.pages.currentIndex() == PLAN and RUN not in w.reachable_steps() and not w.to_run.isEnabled()
+        assert "demo deck" in w.to_run.toolTip()
+    finally:
+        w.demo_deck.setChecked(False)
 
 
 def test_a_long_status_does_not_make_the_window_wider(window):
@@ -171,17 +186,23 @@ def test_the_run_clock_shows_elapsed_time_vials_and_throughput(window, monkeypat
     w.run_started, w.run_finished = 100.0, 100.0 + 150.0                         # 2:30 run
     w._show_clock()
     assert w.clock.text() == "2:30   18/36 vials   7.2 vials/min"
+    w.runner = None
 
 
 def test_a_completed_run_can_run_again(window):
     """A swap undoes itself on a second run; Run checks the deck again before each run anyway."""
     w, _ = window
-    w.runner = SimpleNamespace(plan=None, orca_phase=lambda: "completed", vials_finished=lambda: 8)
+    w.result = _plan_result(ready=True)
+    w.runner = SimpleNamespace(plan=None, orca_phase=lambda: "completed", vials_finished=lambda: 8,
+                               isRunning=lambda: False)
     w.run_started, w.run_finished = 100.0, 160.0
-    w.run_ended("completed", "")
-    assert w.run_button.isEnabled() and w.run_button.text() == "Run again"
-    w.run_ended("failed", "the controller refused")
-    assert w.run_button.isEnabled() and w.run_button.text() == "Run on the cell"
+    try:
+        w.run_ended("completed", "")
+        assert w.run_button.isEnabled() and w.run_button.text() == "Run again"
+        w.run_ended("failed", "the controller refused")
+        assert w.run_button.isEnabled() and w.run_button.text() == "Run on the cell"
+    finally:
+        w.runner = None
 
 
 def test_routes_show_in_the_plan_and_the_route_fills_in_when_decided(window):
@@ -202,3 +223,134 @@ def test_routes_show_in_the_plan_and_the_route_fills_in_when_decided(window):
                                vials_finished=lambda: 1)
     w.refresh()
     assert w.table.item(0, 0).text() == "bay 3 C1 -> bay 8 C1"
+    w.runner = None
+
+
+# ------------------------------------------------------------------------- the gear and the connection pill
+def _fake_controller(fault=None):
+    """A one-thread TCP server that answers every line with the controller's status reply."""
+    import json
+    import socket
+    import threading
+    server = socket.socket()
+    server.bind(("127.0.0.1", 0))
+    server.listen()
+
+    def serve():
+        while True:
+            try:
+                conn, _ = server.accept()
+            except OSError:
+                return
+            with conn:
+                if conn.recv(1024):
+                    conn.sendall(json.dumps({"id": 1, "ok": True, "status": {"fault": fault}}).encode() + b"\n")
+    threading.Thread(target=serve, daemon=True).start()
+    return server
+
+
+def _check_until(w, app, port, demo=False):
+    import time
+    w.settings.set_values("127.0.0.1", port, demo)
+    w.connection_state = None
+    w.check_connection()
+    deadline = time.monotonic() + 5
+    while w.connection_state is None and time.monotonic() < deadline:
+        app.processEvents()
+        time.sleep(0.01)
+    return w.connection_state, w.connection.text()
+
+
+def test_the_pill_shows_whether_the_controller_answers(window):
+    w, app = window
+    w.check_timer.stop()                                       # only the checks this test asks for
+    ok, faulted = _fake_controller(), _fake_controller(fault="arm collision")
+    try:
+        assert _check_until(w, app, ok.getsockname()[1]) == ("connected", "● Connected")
+        assert _check_until(w, app, faulted.getsockname()[1]) == ("fault", "● Controller fault")
+        assert "arm collision" in w.connection.toolTip()
+        closed = ok.getsockname()[1]
+        ok.close()
+        assert _check_until(w, app, closed) == ("offline", "● Not connected")
+        assert _check_until(w, app, closed, demo=True) == ("demo", "● Demo deck")
+    finally:
+        ok.close()
+        faulted.close()
+        w.settings.set_values("127.0.0.1", 8700, False)
+
+
+def test_the_gear_sits_top_right_and_holds_the_controller_settings(window):
+    w, _ = window
+    assert w.gear.text() == "⚙" and w.connection.parent() is w.gear.parent()
+    w.settings.set_values("192.168.64.4", 8701, False)
+    assert w._address() == ("192.168.64.4", 8701)
+    assert w.demo_deck is w.settings.demo_deck
+    w.settings.set_values("127.0.0.1", 8700, False)
+
+
+def test_a_new_address_replaces_a_check_still_waiting(window):
+    """Changing the port while a check is under way: the answer shown is the new address's, at once."""
+    import time
+    w, app = window
+    w.check_timer.stop()
+    ok = _fake_controller()
+    try:
+        w.checker.check("192.0.2.1", 9)                        # an address that never answers (TEST-NET-1)
+        state, text = _check_until(w, app, ok.getsockname()[1])
+        assert (state, text) == ("connected", "● Connected")
+        time.sleep(0.1)
+        app.processEvents()
+        assert w.connection_state == "connected"               # the dropped check never reports back
+    finally:
+        ok.close()
+        w.settings.set_values("127.0.0.1", 8700, False)
+
+
+def test_the_conversation_shows_requests_tool_calls_and_replies_in_order(window, monkeypatch):
+    from agent import ui
+    w, app = window
+    w.load_button.menu().actions()[0].trigger()
+    w.feed.clear()
+
+    class Planner(ui.PlanWorker):                                # two tool calls, then a plan ready
+        def run(self):
+            self.tool_call.emit("describe_cell({})")
+            self.tool_call.emit('rack_inventory({"bay": 3})')
+            self.planned.emit(_plan_result(ready=True))
+    monkeypatch.setattr(ui, "PlanWorker", Planner)
+    w.plan()
+    w.planner.wait(2000)
+    app.processEvents()
+    text = w.reply.toPlainText()
+    order = [text.index(s) for s in ("You: Heat the first four", "Claude calls describe_cell({})",
+                                     'Claude calls rack_inventory({"bay": 3})', "Claude: Planned.")]
+    assert order == sorted(order) and "planning ..." not in text
+    assert w.feed.toPlainText() == ""                            # Claude's activity stays out of the Run feed
+    w.load_button.menu().actions()[0].trigger()                  # a new request: a new conversation
+    assert w.reply.toPlainText() == "" and w.activity == []
+
+
+def test_dialogs_open_centred_on_the_window(window):
+    from PySide6.QtWidgets import QMessageBox
+    w, _ = window
+    w.move(200, 150)
+    box = QMessageBox(QMessageBox.Question, "Approve the plan", "Run it?", QMessageBox.Yes | QMessageBox.No, w)
+    box.exec = lambda: QMessageBox.Yes                           # do not block the test
+    assert w.show_centered(box) == QMessageBox.Yes
+    centre = box.geometry().center()
+    assert abs(centre.x() - w.frameGeometry().center().x()) <= 2
+    assert abs(centre.y() - w.frameGeometry().center().y()) <= 2
+
+
+def test_the_gear_is_a_plain_symbol_that_opens_the_settings_on_a_click(window, monkeypatch):
+    from PySide6.QtCore import QPointF, Qt
+    from PySide6.QtGui import QMouseEvent
+    from PySide6.QtWidgets import QAbstractButton, QApplication
+    w, _ = window
+    assert not isinstance(w.gear, QAbstractButton) and w.gear.cursor().shape() == Qt.PointingHandCursor
+    opened = []
+    monkeypatch.setattr(w, "show_centered", lambda dialog: opened.append(dialog) or 0)
+    centre = QPointF(w.gear.rect().center())
+    for kind in (QMouseEvent.MouseButtonPress, QMouseEvent.MouseButtonRelease):
+        QApplication.sendEvent(w.gear, QMouseEvent(kind, centre, centre, Qt.LeftButton, Qt.LeftButton, Qt.NoModifier))
+    assert opened == [w.settings]
