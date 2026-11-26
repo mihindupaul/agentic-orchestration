@@ -128,7 +128,8 @@ make ctl      # the controller service (SIM_HOST=192.168.64.4 for the VM)
 1. **Describe**: type a request or load an example, then **Start planning**. Claude's replies show in the
    conversation below, in order with each tool call it makes (planning is the only time Claude is involved; the
    Run step's feed is Orca's alone); a question comes up in a popup (OK answers and continues, Abort stops).
-2. **Plan**: opens by itself once Claude marks a plan ready: the plan as a tree (steps, rules, routes), the job
+2. **Plan**: opens by itself once Claude marks a plan ready: what will happen in Claude's own words, then the
+   plan details as a tree (steps, rules, routes), the job
    size and the deck check. Not right? Click **Describe** in the step bar, change the request and plan again;
    right: **Go to run**. The step bar switches between the steps at any time.
 3. **Run**: **Run on the cell** asks for approval, checks the deck once more and runs; Orca's phase, every vial's

@@ -127,10 +127,11 @@ def test_run_is_offered_only_for_a_plan_marked_ready(window, monkeypatch):
     assert w.run_button.isEnabled() and w.state.text().startswith("planned") and asked == ["Planned."]
 
 
-def test_the_window_shows_its_name_in_the_title_bar_and_on_top(window):
+def test_the_window_shows_its_name_in_the_title_bar_and_the_steps_on_top(window):
     w, _ = window
-    assert w.windowTitle() == "Agentic Orchestration"
-    assert "Words to Work" in w.centralWidget().findChild(QLabel).text()
+    assert w.windowTitle() == "Agentic lab automation"
+    top = w.centralWidget().layout().itemAt(0).layout()                       # the first row of the window
+    assert top.itemAt(0).widget() is w.step_bar and top.indexOf(w.gear) == top.count() - 1
 
 
 def test_the_window_walks_through_describe_plan_and_run(window, monkeypatch):
@@ -354,3 +355,19 @@ def test_the_gear_is_a_plain_symbol_that_opens_the_settings_on_a_click(window, m
     for kind in (QMouseEvent.MouseButtonPress, QMouseEvent.MouseButtonRelease):
         QApplication.sendEvent(w.gear, QMouseEvent(kind, centre, centre, Qt.LeftButton, Qt.LeftButton, Qt.NoModifier))
     assert opened == [w.settings]
+
+
+def test_the_plan_step_says_in_plain_words_what_will_happen_above_the_tree(window):
+    w, _ = window
+    result = _plan_result(ready=True)
+    result.reply = "Row C of bay 3 will be **scanned**, then put in the same wells of bay 8."
+    w.planned(result)
+    assert w.plan_text.text() == result.reply and w.tree.topLevelItemCount() >= 1
+    layout = w.plan_text.parentWidget().layout()
+    assert layout.indexOf(w.plan_text) < layout.indexOf(w.tree)              # words first, structure below
+    result.reply = ""
+    w.tree.clear()
+    w.planned(result)
+    assert w.plan_text.text() == result.spec.summary                         # no reply: the spec's summary
+    w.load_button.menu().actions()[0].trigger()
+    assert w.plan_text.text() == ""

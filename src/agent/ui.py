@@ -45,8 +45,7 @@ from .spec import Heat, WorkflowSpec
 from .validator import Report, validate
 
 COLUMNS = ["Vial", "Process", "Status", "Code", "Grams", "°C", "Rules"]
-APP_NAME = "Agentic Orchestration"                 # the title bar: the project's name
-TITLE, SUBTITLE = "Words to Work", "plan, check and run on the workcell"   # the header on top of the window
+APP_NAME = "Agentic lab automation"               # the title bar: the project's name, as in the README
 DESCRIBE, PLAN, RUN = range(3)                     # the steps, in order
 STEP_NAMES = ["Describe", "Plan", "Run"]
 
@@ -346,8 +345,8 @@ class Window(QMainWindow):
         # where the controller is and the demo deck: behind the gear in the header
         self.settings = SettingsDialog(self)
         self.demo_deck = self.settings.demo_deck
-        # "What do you want? or pick from this list [Load example]" above the request; Start planning below it
-        ask = QLabel("<b>What do you want?</b>&nbsp; or")
+        # "Describe what you want to do, or [pick from this list]" above the request; Start planning below it
+        ask = QLabel("<b>Describe what you want to do</b>, or")
         ask.setStyleSheet("font-size: 13pt")
         prompt_row = QHBoxLayout()
         prompt_row.addWidget(ask)
@@ -367,6 +366,11 @@ class Window(QMainWindow):
         describe_page.layout().setStretch(1, 1)         # extra height goes to the conversation
 
         # step 2: plan
+        # in plain words first (Claude's own description of the plan), then the plan details as a tree
+        self.plan_text = QLabel(wordWrap=True, textFormat=Qt.MarkdownText)
+        self.plan_text.setTextInteractionFlags(Qt.TextSelectableByMouse)
+        self.plan_text.setStyleSheet("background: palette(base); border: 1px solid palette(mid); border-radius: 6px; "
+                                     "padding: 8px; font-size: 13pt")
         self.tree = QTreeWidget(headerHidden=True)
         self.findings = QLabel(wordWrap=True)
         self.to_run = QPushButton("Go to run  ▶", enabled=False, clicked=lambda: self.go_to(RUN))
@@ -374,7 +378,8 @@ class Window(QMainWindow):
         plan_buttons = QHBoxLayout()                    # top left, like Run on the cell; back: the step bar
         plan_buttons.addWidget(self.to_run)
         plan_buttons.addStretch()
-        plan_page = self._page(self._box("The plan", plan_buttons, self.tree, self.findings))
+        plan_page = self._page(self._box("The plan", plan_buttons, self._caption("What will happen"), self.plan_text,
+                                         self._caption("Plan details"), self.tree, self.findings))
 
         # step 3: run
         self.run_button = QPushButton("Run on the cell", enabled=False, clicked=self.run)
@@ -411,16 +416,13 @@ class Window(QMainWindow):
             self.pages.addWidget(page)
         self.step_bar = StepBar(STEP_NAMES, self.go_to)
 
-        # the name in large type on top, so it reads in a demo or a recording, not only in the title bar
-        header = QLabel(f"<span style='font-size:22pt; font-weight:600'>{TITLE}</span>"
-                        f"&nbsp;&nbsp;<span style='font-size:13pt; color:gray'>{SUBTITLE}</span>")
-        # top right: whether the controller answers, and the gear for its settings
+        # on top: the step bar on the left; top right: whether the controller answers, and the gear for its settings
         self.connection = QLabel()
         self.gear = ClickableLabel("⚙", toolTip="Controller and demo deck")   # just the symbol, no button frame
         self.gear.clicked.connect(self.open_settings)
         self.gear.setStyleSheet("font-size: 20pt")
         top = QHBoxLayout()
-        top.addWidget(header)
+        top.addWidget(self.step_bar)
         top.addStretch()
         self.connection.setSizePolicy(QSizePolicy.Fixed, QSizePolicy.Fixed)
         top.addWidget(self.connection, 0, Qt.AlignVCenter)
@@ -429,7 +431,6 @@ class Window(QMainWindow):
         page = QWidget()
         layout = QVBoxLayout(page)
         layout.addLayout(top)
-        layout.addWidget(self.step_bar)
         layout.addWidget(self.pages, 1)
         self.setCentralWidget(page)
         self.update_steps()
@@ -465,6 +466,11 @@ class Window(QMainWindow):
         centre()
         QTimer.singleShot(0, centre)                    # runs inside exec(), once the dialog is on screen
         return dialog.exec()
+
+    def _caption(self, text: str) -> QLabel:
+        caption = QLabel(text)
+        caption.setStyleSheet("color: gray; font-weight: 600")
+        return caption
 
     def _page(self, *parts) -> QWidget:
         page, layout = QWidget(), QVBoxLayout()
@@ -561,6 +567,7 @@ class Window(QMainWindow):
         self.reply.clear()
         self.activity = []
         self.tree.clear()
+        self.plan_text.clear()
         self.findings.clear()
         if self.runner is None or not self.runner.isRunning():
             self.table.setRowCount(0)
@@ -591,6 +598,7 @@ class Window(QMainWindow):
         self.activity.append(("you", text))
         self._show_conversation(planning=True)
         self.tree.clear()
+        self.plan_text.clear()
         self.findings.setText("<i>Claude is planning ...</i>")
         self.plan_button.setEnabled(False)
         self.set_state("planning")
@@ -622,6 +630,7 @@ class Window(QMainWindow):
         self.findings.clear()
         if result.spec is not None:                     # shown even when not ready, so the question has context
             self._show_spec(result.spec)
+            self.plan_text.setText(result.reply or result.spec.summary)   # Claude's words; the summary if none
             self._show_findings(result.spec, result.report)
         self.update_steps()
         if not result.ready:
