@@ -22,3 +22,6 @@ ros2/docker/recordings/
 docs/media/*.mp4
 docs/media/*.mov
 docs/media/*.webm
+
+# personal Claude Code notes (CLAUDE.md is shared; CLAUDE.local.md is yours)
+CLAUDE.local.md
