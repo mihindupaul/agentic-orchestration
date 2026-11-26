@@ -1,4 +1,4 @@
-# AI agent workflows
+# Agentic lab automation
 
 From words to work: an AI agent plans a workflow from a request in plain language, and plain code checks it and
 runs it on machines. Built step by step as a learning project in agentic orchestration. The worked example is
