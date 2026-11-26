@@ -4,10 +4,10 @@
 ```
  Container or VM (ROS2 + RViz)                    |  macOS host
                                                   |
- workcell_sim (devices, world, physics)          |  demos/            (stage scripts)
-   sim_node: hosts the simulator, publishes ----> RViz   workcell_controller           (controller)
-   robot_state_publisher, markers, TF             |  orca_workcell  (Orca driver)
-                                                  |  later: workflow builder / AI
+ workcell_sim (devices, world, physics)          |  workcell_controller (controller, its CLI)
+   sim_node: hosts the simulator, publishes ----> RViz   orca_workcell  (Orca driver)
+   robot_state_publisher, markers, TF             |  agent          (AI planning agent, its window)
+                                                  |
         device TCP ports 29999 30003 30004  <-----+----- only link between the two sides
                          5001 5002 5003 9000      |
 ```

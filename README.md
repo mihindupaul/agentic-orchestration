@@ -79,12 +79,12 @@ approve, then watch Orca's run state and every vial's status, and stop the run i
 
 ## Status
 Tests cover the simulator, the deck file against the simulated cell, labware operations, the controller service
-(one operation at a time, fault latch, invalid requests, API) and the CLI. Status of each part:
+(one operation at a time, fault latch, invalid requests, API) and the workcell CLI. Status of each part:
 
 | Part | State |
 |---|---|
 | `workcell_sim` | tested |
-| `workcell_controller` (deck, operations, service, API) | tested against the simulator |
+| `workcell_controller` (deck, operations, service, API, CLI; see [its README](src/workcell_controller/README.md)) | tested against the simulator |
 | `orca_workcell` (drivers, devices, deployment package) | drivers tested against the simulator in Orca 2.3.0's environment (`make orca-test`); workflows run live through the controller to the simulator |
 | `agent` (planner, validator, compiler, window) | tested without the API (a scripted stand-in) and against the simulator; plans run live on the simulator |
 | `ros2/` | scene tested on the Mac; runs in the container (`ros2/docker`) or the UTM VM (`ros2/vm`) |

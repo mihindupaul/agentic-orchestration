@@ -1,12 +1,13 @@
 """Interactive command line for the workcell: plain commands, plus raw access to every device.
 
 The devices only understand coordinates and simple commands. Names like "bay 3 A1" or "scanner" are
-turned into coordinates by the controller layer on this machine (`workcell_controller.deck`, `workcell_controller.operations`),
-using the deck file `src/workcell_controller/decks/workcell.json`.
+turned into coordinates by the controller layer on this machine (`deck.py`, `operations.py`), using the deck file
+`decks/workcell.json`. The shell talks to the devices directly, not through the controller service: stop
+`make ctl` first, so only one of them drives the hardware.
 
-    python demos/stage1_simulator/workcell_cli.py --host 192.168.64.4
-    python demos/stage1_simulator/workcell_cli.py --host 192.168.64.4 -c "enable; pick 3 A1; move scanner"
-    python demos/stage1_simulator/workcell_cli.py --host 192.168.64.4 run demo.txt
+    python -m workcell_controller.cli --host 192.168.64.4                 (or: make cli SIM_HOST=192.168.64.4)
+    python -m workcell_controller.cli --host 192.168.64.4 -c "enable; pick 3 A1; move scanner"
+    python -m workcell_controller.cli --host 192.168.64.4 run src/workcell_controller/cli_basics.txt
 
 Every line sent to a device is printed with its reply, so you see exactly what crosses the wire.
 Type `help` for the command list, `help <command>` for details.
@@ -17,19 +18,13 @@ from __future__ import annotations
 import argparse
 import asyncio
 import cmd
-import os
 import shlex
 import sys
 import time
 
-try:
-    import workcell_controller  # noqa: F401
-except ImportError:          # running from a fresh clone without `make install`
-    sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "src"))
-
-from workcell_controller.deck import Deck
-from workcell_controller.errors import ControllerError
-from workcell_controller.operations import Workcell
+from .deck import Deck
+from .errors import ControllerError
+from .operations import Workcell
 
 STATIONS = ("scanner", "heater", "balance")
 TTY = sys.stdout.isatty()

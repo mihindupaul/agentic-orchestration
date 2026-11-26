@@ -9,7 +9,7 @@ CTL_PORT ?= 8700
 # the Python that runs the project: .venv-orca (everything, from make orca-install) if present, else .venv, else python3
 RUN_PY ?= $(firstword $(wildcard .venv-orca/bin/python .venv/bin/python) python3)
 
-.PHONY: install test orca-install orca-sim orca-live orca-test sim-up sim-view sim-down sim-logs sim-record sim ctl demo agent-ui \
+.PHONY: install test orca-install orca-sim orca-live orca-test sim-up sim-view sim-down sim-logs sim-record sim ctl cli demo agent-ui \
         sim-reset
 install:
 	$(PY) -m pip install -e ".[dev]"
@@ -51,6 +51,8 @@ orca-test:      # the whole suite, including the tests that run inside Orca
 	$(ORCA_PY) -m pytest -q
 ctl:            # controller service, API on :$(CTL_PORT) (then e.g. python -m workcell_controller do pick 3 A1)
 	$(RUN_PY) -m workcell_controller --sim-host $(SIM_HOST) --api-port $(CTL_PORT) serve
+cli:            # the interactive workcell shell, straight to the devices (stop make ctl first): help lists the commands
+	$(RUN_PY) -m workcell_controller.cli --host $(SIM_HOST)
 demo:           # one tube through scan/weigh/heat using the controller's labware operations
 	$(RUN_PY) examples/run_demo.py --host $(SIM_HOST)
 agent-ui:       # the planning agent's window (needs the controller running: make ctl); CTL_PORT=8701 for another port

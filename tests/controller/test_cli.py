@@ -1,18 +1,16 @@
-"""The stage 1 CLI drives a live simulator through the same TCP ports a viewer would use."""
+"""The workcell CLI (python -m workcell_controller.cli) drives a live simulator through the same TCP ports a
+viewer would use."""
 
 import asyncio
 import os
-import sys
 import threading
 
-sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "demos", "stage1_simulator"))
+from workcell_sim import Simulator, Timing
+from workcell_sim.simulator import load_demo_racks
+from workcell_controller.operations import Workcell
+from workcell_controller.cli import WorkcellShell
 
-from workcell_sim import Simulator, Timing  # noqa: E402
-from workcell_sim.simulator import load_demo_racks  # noqa: E402
-from workcell_controller.operations import Workcell  # noqa: E402
-from workcell_cli import WorkcellShell  # noqa: E402
-
-BASICS = os.path.join(os.path.dirname(__file__), "..", "..", "demos", "stage1_simulator", "basics.txt")
+BASICS = os.path.join(os.path.dirname(__file__), "..", "..", "src", "workcell_controller", "cli_basics.txt")
 PORT_NAMES = ("arm_dashboard", "arm_motion", "arm_feedback", "balance", "scanner", "heater", "admin")
 
 

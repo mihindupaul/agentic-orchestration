@@ -10,7 +10,7 @@ heater read or heat whatever is in front of them. No device knows about bays, we
 - `deck.py` + `decks/workcell.json`: the deck. Bay and well addresses and station names become arm coordinates;
   safe, grip and dock heights. On real hardware these are taught positions.
 - `operations.py`: labware operations built from device commands: `pick("3 A1")`, `place("scanner")` (docks and
-  keeps holding), `place("balance")` (sets down), `scan`, `weigh`, `heat` (starts heating, returns at once), `temperature`, `heater_off`. The stage 1 CLI drives these.
+  keeps holding), `place("balance")` (sets down), `scan`, `weigh`, `heat` (starts heating, returns at once), `temperature`, `heater_off`. The workcell shell (`make cli`, `cli.py`) drives these directly.
 - `controller.py`: the service. The one owner of the hardware: one operation at a time (a second request is
   refused, not queued), and a fault latch (arm fault, lost reply or lost vial: everything is refused until an
   operator calls `clear_fault`). It makes no decisions about samples.

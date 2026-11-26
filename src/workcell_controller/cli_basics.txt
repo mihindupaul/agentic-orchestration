@@ -1,5 +1,5 @@
-# Stage 1 basics: each device on its own, one command at a time. No process, just what each command does.
-#   python workcell_cli.py --host <sim-ip> run basics.txt
+# The basics: each device on its own, one command at a time. No process, just what each command does.
+#   python -m workcell_controller.cli --host <sim-ip> run src/workcell_controller/cli_basics.txt
 
 # Arm: power, ask where it is, move it around
 raw arm RobotMode()
