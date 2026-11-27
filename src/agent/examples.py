@@ -51,5 +51,5 @@ def find(key: str, folder: Path = FOLDER) -> Example:
     matches = [e for e in all_examples(folder)
                if e.name == key or e.name.startswith(key) or (key.isdigit() and e.name.split("_")[0] == f"{int(key):02d}")]
     if len(matches) != 1:
-        raise LookupError(f"no single example matches {key!r} ({len(matches)} found); see python -m agent --list")
+        raise LookupError(f"no single example matches {key!r} ({len(matches)} found)")
     return matches[0]

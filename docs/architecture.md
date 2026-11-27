@@ -48,8 +48,8 @@ hands in a `WorkflowSpec`: processes built from a fixed menu of steps (scan, wei
 destination wells, transit wells for swaps and routes decided mid-flight. The model never writes code. Plain code
 does everything that has to be right: the validator checks the spec against the live deck, a person approves it,
 and the compiler builds the Orca topology and workflow and runs it. Per-vial decisions are made in plain code
-inside each vial's thread while it runs; no model is called during a run. A PySide6 window (Describe > Plan > Run)
-and a command line drive it.
+inside each vial's thread while it runs; no model is called during a run. A PySide6 window (Describe > Plan > Run) is
+the way in.
 
 **Visualisation** (`ros2/`): a ROS 2 node hosts the simulator and publishes the arm, racks, vials and instrument
 activity to RViz, viewed in the browser over noVNC. It runs in a container by default, or in a VM. The host side

@@ -1,4 +1,4 @@
-# Bay 5 holds no rack in the demo deck (--offline): Claude should notice from rack_inventory.
+# Bay 5 holds no rack in the demo deck: Claude should notice from rack_inventory.
 # expect: no plan
 # Look for: says bay 5 is empty, no spec.
 Scan and weigh row A of bay 5 and put the vials in bay 8.

@@ -12,9 +12,8 @@ The model only ever produces data, a WorkflowSpec. Plain code does everything th
                  mark_plan_ready
   planner.py     the Claude API call (the SDK's tool runner) and the checks on its result
   compiler.py    WorkflowSpec -> Orca topology + workflow (needs Orca); rules are evaluated here, per vial
+  ui.py          the window: Describe > Plan > Run (.venv-orca/bin/python -m agent.ui, or make agent-ui)
   prompts/       the system prompt
-
-    python -m agent "scan and weigh rows C and E of bay 3, then put them in bay 8" --offline
 
 Needs the `agent` extra (anthropic, pydantic) and API credentials; the tests need neither.
 """

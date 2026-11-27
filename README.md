@@ -103,15 +103,14 @@ planned.
    or agent side.
 2. **Evals.** Run the example requests in `examples/agent_requests/` as a set and score the results (the right
    processes, steps and rules, a question where one is expected), to measure prompt and model changes.
-3. **Saved plans.** Save an approved spec and run it again later, from the window or the command line, without
-   calling the model.
+3. **Saved plans.** Save an approved spec and run it again later, from the window, without calling the model.
 4. **A time estimate before a run**, from operation timings measured on the simulator, shown with the job size.
 5. **Recovery after a stop.** A stopped run leaves a vial in an instrument or the gripper; a recovery step would
    find it and put it back.
 6. **A richer rule vocabulary**: comparing a vial with the others (above the row average), and destinations a
    rule decides per vial (heavy vials to another rack).
-7. **Refining an accepted plan** in the window ("make it 50 C"), which the command line can do but the window
-   no longer offers.
+7. **Refining an accepted plan** in the window ("make it 50 C"): today **Start planning** begins a new
+   conversation.
 8. **An MCP server** over the agent's tools, so other AI clients could plan for the cell too.
 
 ## Acknowledgements

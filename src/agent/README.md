@@ -29,7 +29,6 @@ Built step by step:
 | `validator.py` | the spec against the deck: racks present, vials there, destination wells free or emptied, no sharing, transit wells for swaps |
 | `compiler.py` | spec -> Orca topology and workflow, one thread per vial; evaluates the rules; runs it |
 | `ui.py` | the window (PySide6) |
-| `__main__.py` | the command line |
 | `prompts/system_prompt.md` | the system prompt |
 | `examples.py` | loads the example requests in [`examples/agent_requests/`](../../examples/agent_requests/) |
 
@@ -90,13 +89,12 @@ off when the run ends.
 
 **A plan runs only once Claude marks it ready.** An accepted spec is not yet a plan to run: Claude calls
 `mark_plan_ready` when the spec does what the person asked and nothing is left for them to decide. Only then
-does the window offer **Run** (and the command line `--run`). An accepted spec that is not marked ready means
+does the window offer **Run**. An accepted spec that is not marked ready means
 Claude wants an answer first, and the window asks it in the popup; a new submission clears the mark.
 
 **Claude may ask instead of planning.** When something is missing (no temperature given) or the cell cannot
 do what was asked, Claude replies without a spec. The window shows the reply in a popup with an answer box:
-OK continues the same conversation (Claude sees every earlier turn and plans again), Abort stops planning. The
-command line asks the same question in the terminal.
+OK continues the same conversation (Claude sees every earlier turn and plans again), Abort stops planning.
 
 **Check how the reply ended before trusting it** (`planner.py`): `refusal` (declined), `max_tokens` (cut off),
 or still `tool_use` after the iteration limit are errors, not plans.
@@ -118,9 +116,7 @@ cp .env.example .env                  # then put your ANTHROPIC_API_KEY in .env 
 make sim-up   # or the VM: ros2/vm/deploy.sh
 make ctl      # the controller service (SIM_HOST=192.168.64.4 for the VM)
 
-.venv-orca/bin/python -m agent.ui                                    # the window
-.venv-orca/bin/python -m agent --example 03 --offline                # plan an example request, demo deck
-.venv-orca/bin/python -m agent "scan and weigh row C of bay 3, then bay 8" --run   # plan, approve, run
+make agent-ui # the window (or .venv-orca/bin/python -m agent.ui)
 ```
 
 **The window** walks through three steps, one page each, with a step bar on top (**1 Describe › 2 Plan › 3 Run**):
@@ -143,9 +139,8 @@ such a plan can be reviewed but not run). The pill next to it shows every few se
 answers: green connected, amber with a fault latched, red not connected, grey demo deck.
 
 **Example requests** live as text files in [`examples/agent_requests/`](../../examples/agent_requests/):
-`python -m agent --list`, then `python -m agent --example 03 --offline`, or **Load example** in the window. Each
-says whether a plan should come back (`# expect: plan` or `# expect: no plan`), and a command-line run reports
-whether it did. Edit them or add your own.
+**pick from this list** in the window loads one. Each says whether a plan should come back (`# expect: plan` or
+`# expect: no plan`). Edit them or add your own.
 
 Planning calls the API and costs a little; running a plan does not. The tests (`tests/agent/`) replace the API
 with a stand-in and cost nothing.
