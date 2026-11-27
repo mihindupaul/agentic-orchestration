@@ -1,7 +1,7 @@
 """What RViz shows, as plain data: the arm URDF, a state snapshot and marker descriptions.
 
 No ROS imports here, so it can be tested anywhere. `sim_node.py` turns the dicts into messages.
-Every dimension comes from `workcell_sim.config.Layout`; the extra visual sizes below are
+Every dimension comes from `simulator.config.Layout`; the extra visual sizes below are
 cosmetic only (they never affect the simulation) and are listed in docs/assumptions.md.
 
 Frames: `world` is the simulator frame (metres, origin at the arm base, +X right, +Y front, Z up
@@ -12,7 +12,7 @@ from __future__ import annotations
 
 import math
 
-from workcell_sim.config import Layout
+from simulator.config import Layout
 
 MM = 0.001
 

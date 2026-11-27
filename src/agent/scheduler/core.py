@@ -20,8 +20,8 @@ import asyncio
 import os
 from dataclasses import dataclass
 
-from workcell_controller.api import ControllerClient
-from workcell_controller.errors import (ArmFault, ControllerBusy, ControllerFault, DeviceError, DeviceTimeout, GripperEmpty,
+from controller.api import ControllerClient
+from controller.errors import (ArmFault, ControllerBusy, ControllerFault, DeviceError, DeviceTimeout, GripperEmpty,
                             InvalidRequest, OperationError, ControllerError, VialLost)
 
 ACTIONS = ("pick", "place", "home", "scan", "weigh", "tare", "heat", "temperature", "heater_off")

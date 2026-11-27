@@ -1,10 +1,10 @@
-"""workcell_controller: run the controller service, or send it one request.
+"""controller: run the controller service, or send it one request.
 
-  python -m workcell_controller serve  [--sim-host H] [--deck FILE] [--api-port 8700]
-  python -m workcell_controller status
-  python -m workcell_controller do pick 3 A1        python -m workcell_controller do place scanner
-  python -m workcell_controller do scan             python -m workcell_controller do heat 60
-  python -m workcell_controller do temperature      python -m workcell_controller do heater_off
+  python -m controller serve  [--sim-host H] [--deck FILE] [--api-port 8700]
+  python -m controller status
+  python -m controller do pick 3 A1        python -m controller do place scanner
+  python -m controller do scan             python -m controller do heat 60
+  python -m controller do temperature      python -m controller do heater_off
 """
 
 from __future__ import annotations

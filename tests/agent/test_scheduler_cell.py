@@ -15,10 +15,10 @@ from cheshire_drivers.driver_errors import DriverError, DriverRefusedError, Driv
 from agent.scheduler.cell import (BalanceDriver, CellArmDriver, CodeReaderDriver, HeaterDriver,  # noqa: E402
                                   SimStationDriver, address, layout)
 from agent.scheduler.core import ControllerConfig  # noqa: E402
-from workcell_controller import Controller  # noqa: E402
-from workcell_controller.api import serve  # noqa: E402
-from workcell_controller.deck import Deck  # noqa: E402
-from workcell_sim import Simulator, Timing  # noqa: E402
+from controller import Controller  # noqa: E402
+from controller.api import serve  # noqa: E402
+from controller.deck import Deck  # noqa: E402
+from simulator import Simulator, Timing  # noqa: E402
 
 FREE = {k: 0 for k in ("arm_dashboard", "arm_motion", "arm_feedback", "balance", "scanner", "heater", "admin")}
 

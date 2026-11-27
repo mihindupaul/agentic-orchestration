@@ -1,13 +1,13 @@
 """One tube through scan, weigh and heat with the controller's labware operations.
 
-    python -m workcell_sim --time-scale 20 --demo-racks     # terminal 1 (or the ROS2 VM)
-    python examples/run_demo.py [--host 192.168.64.4]        # terminal 2
+    python -m simulator --time-scale 20 --demo-racks       # terminal 1 (or the ROS2 VM)
+    python examples/run_demo.py [--host 192.168.64.4]      # terminal 2
 """
 
 import argparse
 import asyncio
 
-from workcell_controller.operations import Workcell
+from controller.operations import Workcell
 
 
 async def main(host: str) -> None:

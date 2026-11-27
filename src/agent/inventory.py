@@ -46,7 +46,7 @@ class ControllerInventory:
         return asyncio.run(self._rack(bay))
 
     async def _rack(self, bay: int) -> dict:
-        from workcell_controller.api import ControllerClient
+        from controller.api import ControllerClient
         client = ControllerClient(self.host, self.port)
         await client.open()
         try:

@@ -31,10 +31,10 @@ sim-reset:      # fresh demo deck in a running simulator (container or VM: SIM_H
 	  && echo "simulator reset: full racks in bays 3 and 2 (red caps), empty rack in bay 8, heater off, arm home" \
 	  || { echo "no simulator answered on $(SIM_HOST):9000"; exit 1; }
 	@if nc -z 127.0.0.1 $(CTL_PORT) 2>/dev/null; then \
-	  $(RUN_PY) -m workcell_controller --api-port $(CTL_PORT) do clear_fault >/dev/null && echo "controller on :$(CTL_PORT) ready"; \
+	  $(RUN_PY) -m controller --api-port $(CTL_PORT) do clear_fault >/dev/null && echo "controller on :$(CTL_PORT) ready"; \
 	fi
 sim:            # no container, no view: the simulator alone on this machine, 20x faster than real time
-	$(RUN_PY) -m workcell_sim --time-scale 20 --demo-racks
+	$(RUN_PY) -m simulator --time-scale 20 --demo-racks
 UV ?= uv
 ORCA_PY = .venv-orca/bin/python
 orca-install:   # separate env for Orca (it installs its own PyLabRobot fork)
@@ -43,10 +43,10 @@ orca-install:   # separate env for Orca (it installs its own PyLabRobot fork)
 	$(UV) pip install --python $(ORCA_PY) -e ".[dev,agent,ui]"
 orca-test:      # the whole suite, including the tests that run inside Orca
 	$(ORCA_PY) -m pytest -q
-ctl:            # controller service, API on :$(CTL_PORT) (then e.g. python -m workcell_controller do pick 3 A1)
-	$(RUN_PY) -m workcell_controller --sim-host $(SIM_HOST) --api-port $(CTL_PORT) serve
+ctl:            # controller service, API on :$(CTL_PORT) (then e.g. python -m controller do pick 3 A1)
+	$(RUN_PY) -m controller --sim-host $(SIM_HOST) --api-port $(CTL_PORT) serve
 cli:            # the interactive workcell shell, straight to the devices (stop make ctl first): help lists the commands
-	$(RUN_PY) -m workcell_controller.cli --host $(SIM_HOST)
+	$(RUN_PY) -m controller.cli --host $(SIM_HOST)
 demo:           # one tube through scan/weigh/heat using the controller's labware operations
 	$(RUN_PY) examples/run_demo.py --host $(SIM_HOST)
 agent-ui:       # the planning agent's window (needs the controller running: make ctl); CTL_PORT=8701 for another port

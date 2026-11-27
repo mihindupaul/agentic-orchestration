@@ -4,19 +4,19 @@
 ```
  Container or VM (ROS2 + RViz)                    |  macOS host
                                                   |
- workcell_sim (devices, world, physics)          |  workcell_controller (controller, its CLI)
-   sim_node: hosts the simulator, publishes ----> RViz   agent/scheduler (Orca driver)
-   robot_state_publisher, markers, TF             |  agent          (AI planning agent, its window)
+ simulator (devices, world, physics)              |  controller     (the service, its device shell)
+   sim_node: hosts the simulator, publishes ----> RViz  agent          (AI planning agent, its window)
+   robot_state_publisher, markers, TF             |    scheduler    (Orca and its driver plug-in)
                                                   |
         device TCP ports 29999 30003 30004  <-----+----- only link between the two sides
                          5001 5002 5003 9000      |
 ```
-- The network is the only interface. Code on the Mac never imports `workcell_sim`; it gets the simulator
+- The network is the only interface. Code on the Mac never imports `simulator`; it gets the simulator
   address from configuration (`--host`, `--sim-host`, `ControllerConfig`) and talks to the device ports, as it would
   to real hardware. Real devices speaking the same protocols would only need a different IP address.
 - The ROS2 side owns everything visual. RViz is the simulator's window; the Mac-side story (orchestration) does not
   depend on it.
-- The simulator stays stdlib-only and runs headless anywhere (`python -m workcell_sim`). Tests on the Mac
+- The simulator stays stdlib-only and runs headless anywhere (`python -m simulator`). Tests on the Mac
   start it in-process; that is test scaffolding, not a runtime dependency.
 
 ## Container (default)
@@ -41,8 +41,8 @@ Setup scripts and steps: `ros2/vm/README.md`.
   The simulator binds `0.0.0.0` in the VM; ports above must be reachable from the Mac.
 - The admin port (9000) is a simulator-only back door: what an operator does by hand (load or remove racks),
   fault injection, and ground truth for tests. It never tells a client where things are; positions come from the
-  controller's deck file (`src/workcell_controller/decks/workcell.json`). Real hardware has no admin port, so `workcell_controller`
-  treats it as optional.
+  controller's deck file (`src/controller/decks/workcell.json`). Real hardware has no admin port, so the
+  controller treats it as optional.
 
 ## RViz scene (to build)
 | Piece | ROS | Source of truth |
@@ -54,13 +54,13 @@ Setup scripts and steps: `ros2/vm/README.md`.
 | Balance, scanner well, heater well; heater glow and live temperature label, scan beam while reading | `MarkerArray` | device state |
 | Arm mode / collision / last error as text over the arm | text marker | arm feedback |
 
-All dimensions come from `workcell_sim/config.py` (`Layout`), so the scene and the physics never disagree.
+All dimensions come from `simulator/config.py` (`Layout`), so the scene and the physics never disagree.
 One launch file starts `sim_node`, `robot_state_publisher` and RViz with a saved config; parameters:
 `time_scale`, `demo_racks`, `host`.
 
 ## Code in the VM
 The VM mounts this repo live from the Mac (UTM VirtFS share at `~/agentic-orchestration`) and builds it into a VM-local colcon
-workspace (`~/ws`, symlinked install). The ROS package installs `workcell_sim` from `src/` alongside itself, so
+workspace (`~/ws`, symlinked install). The ROS package installs `simulator` from `src/` alongside itself, so
 the VM needs nothing else.
 
 ## Threading

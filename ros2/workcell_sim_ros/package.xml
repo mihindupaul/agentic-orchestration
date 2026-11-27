@@ -2,7 +2,7 @@
 <package format="3">
   <name>workcell_sim_ros</name>
   <version>0.1.0</version>
-  <description>ROS2 bridge for the workcell_sim hardware simulator</description>
+  <description>ROS2 bridge for the workcell's device simulator (src/simulator)</description>
   <maintainer email="mihindu@mtechlanka.com">Mihindu Paul</maintainer>
   <license>MIT</license>
   <exec_depend>rclpy</exec_depend>

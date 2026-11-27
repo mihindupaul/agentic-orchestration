@@ -8,9 +8,9 @@ import xml.etree.ElementTree as ET
 
 sys.path.insert(0, os.path.join(os.path.dirname(__file__), "..", "..", "ros2", "workcell_sim_ros"))
 
-from workcell_sim import Simulator, Timing  # noqa: E402
-from workcell_sim.config import Layout  # noqa: E402
-from workcell_sim.kinematics import ik  # noqa: E402
+from simulator import Simulator, Timing  # noqa: E402
+from simulator.config import Layout  # noqa: E402
+from simulator.kinematics import ik  # noqa: E402
 from workcell_sim_ros import scene  # noqa: E402
 
 

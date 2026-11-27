@@ -8,9 +8,9 @@ import asyncio
 import pytest
 
 from agent.scheduler import CoreFailed, CoreRefused, CoreRejected, ControllerConfig, CellCore
-from workcell_controller import Controller
-from workcell_controller.api import serve
-from workcell_sim import Simulator, Timing
+from controller import Controller
+from controller.api import serve
+from simulator import Simulator, Timing
 
 FREE = {k: 0 for k in ("arm_dashboard", "arm_motion", "arm_feedback", "balance", "scanner", "heater", "admin")}
 

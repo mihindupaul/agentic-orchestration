@@ -49,7 +49,7 @@ from orca.workflow_models.workflow_templates import WorkflowTemplate
 
 from .scheduler.cell import VIAL_TYPE, Balance, CellArm, CodeReader, Heater, layout, well_position
 from .scheduler.core import ControllerConfig
-from workcell_controller.deck import Deck
+from controller.deck import Deck
 
 from .spec import Heat, Process, Scan, Weigh, WorkflowSpec, decide, decide_route
 from .validator import Report, cycles

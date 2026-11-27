@@ -62,7 +62,7 @@ async def serve(ctl: Controller, host: str = "127.0.0.1", port: int = 8700) -> a
 
 
 class ControllerClient:
-    """Small client for the API, used by the Orca driver and `python -m workcell_controller`."""
+    """Small client for the API, used by the Orca driver and `python -m controller`."""
 
     def __init__(self, host: str = "127.0.0.1", port: int = 8700):
         self.host, self.port = host, port

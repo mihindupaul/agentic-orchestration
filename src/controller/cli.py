@@ -5,9 +5,9 @@ turned into coordinates by the controller layer on this machine (`deck.py`, `ope
 `decks/workcell.json`. The shell talks to the devices directly, not through the controller service: stop
 `make ctl` first, so only one of them drives the hardware.
 
-    python -m workcell_controller.cli --host 192.168.64.4                 (or: make cli SIM_HOST=192.168.64.4)
-    python -m workcell_controller.cli --host 192.168.64.4 -c "enable; pick 3 A1; move scanner"
-    python -m workcell_controller.cli --host 192.168.64.4 run src/workcell_controller/cli_basics.txt
+    python -m controller.cli --host 192.168.64.4                 (or: make cli SIM_HOST=192.168.64.4)
+    python -m controller.cli --host 192.168.64.4 -c "enable; pick 3 A1; move scanner"
+    python -m controller.cli --host 192.168.64.4 run src/controller/cli_basics.txt
 
 Every line sent to a device is printed with its reply, so you see exactly what crosses the wire.
 Type `help` for the command list, `help <command>` for details.
@@ -270,7 +270,7 @@ e.g.  fault scanner_noread     fault heater_timeout     fault heater_overshoot  
 def main() -> None:
     ap = argparse.ArgumentParser(description="Command the workcell from the terminal.")
     ap.add_argument("--host", default="127.0.0.1", help="simulator address, e.g. the ROS2 VM")
-    ap.add_argument("--deck", help="deck file (default: src/workcell_controller/decks/workcell.json)")
+    ap.add_argument("--deck", help="deck file (default: src/controller/decks/workcell.json)")
     ap.add_argument("-c", dest="commands", help="semicolon-separated commands to run, then exit")
     ap.add_argument("script", nargs="*", help="`run <file>` or any single command, then exit")
     args = ap.parse_args()

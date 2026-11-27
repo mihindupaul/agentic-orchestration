@@ -11,19 +11,19 @@ neighbours:
                 -> compiler -> Orca workflow
  agent/scheduler  Orca schedules one thread per vial over the arm
                 and the instruments; drivers call the controller
- workcell_controller  one owner of the hardware;  ── TCP ──────────>  workcell_sim (devices)
+ controller   one owner of the hardware;  ── TCP ───────────────────>  simulator (devices)
                 deck file: names -> coordinates                        ros2: RViz view, noVNC
 ```
 
-**Simulator** (`workcell_sim`, stdlib only): a world model (racks, vials, the gripper, the balance pan, station
+**Simulator** (`simulator`, stdlib only): a world model (racks, vials, the gripper, the balance pan, station
 wells), a queued-motion SCARA arm with inverse kinematics, balance, scanner and heater servers, one TCP port per
 device, fault injection and deterministic time scaling. Devices stay simple: the arm takes x, y, z moves and
 gripper open/close; the instruments read or heat whatever stands in them. No device knows about bays, wells or
 stations. An admin port (sim only) loads racks, reports state and injects faults.
 
-**Controller** (`workcell_controller`), in layers:
+**Controller** (`controller`), in layers:
 - `deck.py` + `decks/workcell.json`: bay/well addresses and station names -> arm coordinates and heights. On real
-  hardware these would be taught positions. `workcell_sim/config.py` is the physical truth; a test keeps the two
+  hardware these would be taught positions. `simulator/config.py` is the physical truth; a test keeps the two
   in step.
 - `operations.py`: labware operations from device commands: `pick("3 A1")`, `place("scanner")`, `scan`, `weigh`,
   `heat` (starts heating and returns), `temperature`, `heater_off`.
@@ -56,5 +56,5 @@ activity to RViz, viewed in the browser over noVNC. It runs in a container by de
 reaches the simulator only over the device ports, as it would reach real hardware.
 
 More detail: `src/agent/README.md` (the agent), `docs/orca-integration.md` (Orca and lessons learned),
-`src/workcell_controller/README.md` (devices, the shell, faults), `docs/simulator-vm.md` (hosting the simulator),
+`src/controller/README.md` (devices, the shell, faults), `docs/simulator-vm.md` (hosting the simulator),
 `docs/assumptions.md` (every geometry or protocol guess).

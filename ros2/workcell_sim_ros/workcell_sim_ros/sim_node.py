@@ -24,8 +24,8 @@ from sensor_msgs.msg import JointState
 from std_msgs.msg import String
 from visualization_msgs.msg import Marker, MarkerArray
 
-from workcell_sim import Simulator, Timing
-from workcell_sim.simulator import load_demo_racks
+from simulator import Simulator, Timing
+from simulator.simulator import load_demo_racks
 
 from . import scene
 

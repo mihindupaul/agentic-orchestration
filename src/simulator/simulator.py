@@ -160,5 +160,5 @@ class Simulator:
 
 async def run_forever(sim: Simulator, host: str, ports: dict | None = None) -> None:
     ports = await sim.start(host, ports)
-    print("workcell_sim listening:", ", ".join(f"{k}={v}" for k, v in ports.items()), flush=True)
+    print("simulator listening:", ", ".join(f"{k}={v}" for k, v in ports.items()), flush=True)
     await asyncio.Event().wait()

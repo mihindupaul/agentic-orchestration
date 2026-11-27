@@ -4,9 +4,9 @@ import asyncio
 
 import pytest
 
-from workcell_controller.errors import GripperEmpty, OperationError
-from workcell_controller.operations import Workcell
-from workcell_sim import Simulator, Timing
+from controller.errors import GripperEmpty, OperationError
+from controller.operations import Workcell
+from simulator import Simulator, Timing
 
 FREE = {k: 0 for k in ("arm_dashboard", "arm_motion", "arm_feedback", "balance", "scanner", "heater", "admin")}
 

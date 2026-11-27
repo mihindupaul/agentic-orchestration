@@ -29,16 +29,16 @@ station is, and the safe, grip and dock heights) and the labware operations buil
 never move the arm at the same time.
 ```
 make ctl SIM_HOST=192.168.64.4                       # the service, API on :8700
-python -m workcell_controller status                 # in another terminal
-python -m workcell_controller do pick 3 A1
-python -m workcell_controller do place scanner
-python -m workcell_controller do scan
+python -m controller status                          # in another terminal
+python -m controller do pick 3 A1
+python -m controller do place scanner
+python -m controller do scan
 ```
 
 **The workcell shell** talks to the devices directly and prints each line it sends with the reply, so you see a
 name like `3 A1` turn into coordinates. Stop `make ctl` first: the shell does not go through the service.
 ```
-make cli SIM_HOST=192.168.64.4                       # or: python -m workcell_controller.cli --host 192.168.64.4
+make cli SIM_HOST=192.168.64.4                       # or: python -m controller.cli --host 192.168.64.4
 workcell> enable
 workcell> raw arm GetPose()  # any device, any line, exactly as typed
 workcell> move scanner
@@ -52,7 +52,7 @@ workcell> heater off
 ```
 `help` lists everything: arm power, motion (`move`, `down`, `up`, `grip`, `release`), vials (`pick`, `place`),
 instruments (`scan`, `weigh`, `tare`, `heat`, `temp`, `heater off`), raw access, and simulator setup (`load`,
-`fault`). `run src/workcell_controller/cli_basics.txt` goes through each device on its own; `-c "enable; move home"`
+`fault`). `run src/controller/cli_basics.txt` goes through each device on its own; `-c "enable; move home"`
 runs a few commands and exits. `--deck` points the shell at another deck file.
 
 ## The devices

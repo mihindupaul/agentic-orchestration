@@ -10,7 +10,7 @@ agent.
 "scan and weigh row C, skip the heat under 2 g"
         │
 planning agent ──(spec, checked, approved)──> Orca ──(driver plug-in)──> workcell controller ──TCP──> devices
-  src/agent            compiled at runtime            agent/scheduler    src/workcell_controller   src/workcell_sim
+  src/agent            compiled at runtime            agent/scheduler    src/controller            src/simulator
   (Claude API)                                                              (Mac)                     (ROS2 + RViz)
 ```
 
@@ -83,8 +83,8 @@ Tests cover the simulator, the deck file against the simulated cell, labware ope
 
 | Part | State |
 |---|---|
-| `workcell_sim` | tested |
-| `workcell_controller` (deck, operations, service, API, CLI; see [its README](src/workcell_controller/README.md)) | tested against the simulator |
+| `simulator` | tested |
+| `controller` (deck, operations, service, API, CLI; see [its README](src/controller/README.md)) | tested against the simulator |
 | `agent/scheduler` (Orca drivers, devices, Orca embedded) | drivers tested against the simulator in Orca 2.3.0's environment (`make orca-test`); compiled plans run live through the controller to the simulator |
 | `agent` (planner, validator, compiler, window) | tested without the API (a scripted stand-in) and against the simulator; plans run live on the simulator |
 | `ros2/` | scene tested on the Mac; runs in the container (`ros2/docker`) or the UTM VM (`ros2/vm`) |

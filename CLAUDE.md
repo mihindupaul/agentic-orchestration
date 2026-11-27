@@ -17,8 +17,8 @@ One `pyproject.toml`, packages under `src/`; non-Python parts get their own top-
 
 | Path | What | Read before changing it |
 |---|---|---|
-| `src/workcell_sim/` | the device simulator (stdlib only) | `docs/assumptions.md` |
-| `src/workcell_controller/` | deck file, operations, the service (`make ctl`), the device shell (`make cli`) | its `README.md` |
+| `src/simulator/` | the device simulator (stdlib only) | `docs/assumptions.md` |
+| `src/controller/` | deck file, operations, the service (`make ctl`), the device shell (`make cli`) | its `README.md` |
 | `src/agent/` | the planning agent: `spec.py`, `tools.py`, `planner.py`, `validator.py`, `compiler.py`, `ui.py` | its `README.md` |
 | `src/agent/scheduler/` | the scheduler: Orca's driver plug-in for the cell (`cell.py`, `core.py`), Orca embedded (`runtime.py`) | `docs/orca-integration.md` |
 | `ros2/` | the simulator's ROS 2 host and RViz view; `docker/` (default) and `vm/` | `docs/simulator-vm.md` |
@@ -51,7 +51,7 @@ in `tests/controller/test_controller.py`). Set up state and faults through `sim.
 - `load_rack` / `remove_rack` (`{"slot", "barcode", "fill": [wells], "cap"}`), `state`, `vial`, `events`,
   `faults`, `rack_map`, `reset`. There is no `layout`/`well_xy`: clients take positions from the deck file. Sim
   tests use the world model directly (`sim.world.well_xy`, `sim.layout.station_xy`).
-- `inject` a `fault` from `KNOWN_FAULTS` in `workcell_sim/faults.py` (`scanner_noread`, `heater_timeout`,
+- `inject` a `fault` from `KNOWN_FAULTS` in `simulator/faults.py` (`scanner_noread`, `heater_timeout`,
   `heater_overshoot`, `balance_unstable`, `gripper_miss`, `gripper_slip`, `arm_collision`) with a `count`.
   Faults are one-shots consumed by the devices; `clear_faults` resets them.
 - Agent tests replace the API with a scripted stand-in client (`tests/agent/test_planner.py`): never make billed
@@ -64,12 +64,12 @@ in `tests/controller/test_controller.py`). Set up state and faults through `sim.
   or proprietary material.
 - Deployment boundary (`docs/simulator-vm.md`): the simulator and RViz run in the container or VM; everything else
   (controller, Orca, the agent) runs on the host and reaches the simulator only over TCP. Host-side code never
-  imports `workcell_sim` and takes the simulator address as configuration (default 127.0.0.1).
+  imports `simulator` and takes the simulator address as configuration (default 127.0.0.1).
 - Hardware stays simple: no bay, well or station knowledge in device protocols or the simulator's client ports.
   Positions come only from the controller's deck file. The controller never imports simulator internals and may
   use the admin port only for rack maps (`rack_map`).
-- Changing the physical layout means changing both `workcell_sim/config.py` (the physical truth) and
-  `workcell_controller/decks/workcell.json` (the controller's copy); `tests/controller/test_deck.py` fails until
+- Changing the physical layout means changing both `simulator/config.py` (the physical truth) and
+  `controller/decks/workcell.json` (the controller's copy); `tests/controller/test_deck.py` fails until
   they agree.
 - Do not modify Orca. Integration goes through `use_device_factory` and a driver provider; keep Orca-facing logic
   in `agent/scheduler/core.py` and the drivers in `cell.py` thin.

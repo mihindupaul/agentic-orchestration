@@ -13,9 +13,9 @@ pytest.importorskip("pydantic")
 from agent.compiler import build_topology, compile_spec, run, vial_name  # noqa: E402
 from agent.spec import WorkflowSpec  # noqa: E402
 from agent.scheduler.core import ControllerConfig  # noqa: E402
-from workcell_controller import Controller  # noqa: E402
-from workcell_controller.api import serve  # noqa: E402
-from workcell_sim import Simulator, Timing  # noqa: E402
+from controller import Controller  # noqa: E402
+from controller.api import serve  # noqa: E402
+from simulator import Simulator, Timing  # noqa: E402
 
 FREE = {k: 0 for k in ("arm_dashboard", "arm_motion", "arm_feedback", "balance", "scanner", "heater", "admin")}
 

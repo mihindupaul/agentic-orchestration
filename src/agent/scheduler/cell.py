@@ -33,7 +33,7 @@ from orca.runtime.device_factory_context import is_factory_bound, use_device_fac
 from orca.runtime.run_modes import WorkflowRunMode
 from orca.runtime.teachpoint_service import seeded_teachpoint_service
 
-from workcell_controller.deck import Deck
+from controller.deck import Deck
 
 from .core import CoreFailed, CoreRefused, CoreRejected, CoreUnknown, ControllerConfig, CellCore
 

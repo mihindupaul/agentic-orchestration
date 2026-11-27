@@ -7,8 +7,8 @@ import math
 
 import pytest
 
-from workcell_controller.deck import Deck, parse_well
-from workcell_sim import Simulator
+from controller.deck import Deck, parse_well
+from simulator import Simulator
 
 
 def test_deck_matches_the_simulated_workcell():

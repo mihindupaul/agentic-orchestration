@@ -8,9 +8,9 @@ import json
 import math
 import re
 
-from workcell_sim import Simulator, Timing
-from workcell_sim.kinematics import fk, ik
-from workcell_sim.config import Layout
+from simulator import Simulator, Timing
+from simulator.kinematics import fk, ik
+from simulator.config import Layout
 
 FREE = {k: 0 for k in ("arm_dashboard", "arm_motion", "arm_feedback", "balance", "scanner", "heater", "admin")}
 
@@ -294,7 +294,7 @@ def test_bays_and_wells_fit_the_deck_without_overlap():
 def test_reset_brings_back_the_demo_deck_without_dropping_connections():
     """The admin reset a demo uses between runs: same ports, same connections, a fresh cell."""
     async def job(sim, orch):
-        from workcell_sim.world import Vial
+        from simulator.world import Vial
         await orch.goto(0, 215, 100)
         await orch.goto(0, 215, 30)
         await orch.sync()
