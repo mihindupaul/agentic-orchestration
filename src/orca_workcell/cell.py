@@ -303,6 +303,12 @@ class Heater(_Station):
 
 
 # ------------------------------------------------------------------------------------------- layout
+# Orca needs a catalog labware type with a working factory. None of its tube entries builds in this
+# release, so each vial is declared with the deep-well plate type already used elsewhere; the type only
+# matters to Orca's catalog, the arm moves whatever stands in the well.
+VIAL_TYPE = "Thermo_Nunc_96_well_plate_1300uL_Rb"
+
+
 def layout(deck: Deck, bays=(3, 8), rows: str | None = None, wells: set | None = None) -> tuple:
     """Rack-well positions for `bays` (only `rows`, or only the (bay, well) pairs in `wells`, if given) and the
     arm's teachpoints, from the controller's deck file: returns ({position name: PlatePad}, [Teachpoint]).

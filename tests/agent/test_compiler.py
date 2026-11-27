@@ -9,7 +9,6 @@ import pytest
 pytest.importorskip("orca")
 pytest.importorskip("anthropic")                     # importing the agent package loads the planner
 pytest.importorskip("pydantic")
-from orca.runtime.store_factory import InMemoryRuntimeStoreFactory  # noqa: E402
 
 from agent.compiler import build_topology, compile_spec, run, vial_name  # noqa: E402
 from agent.spec import WorkflowSpec  # noqa: E402
@@ -38,22 +37,6 @@ def test_the_topology_has_rack_wells_only_for_the_rows_the_plan_uses():
     wells = sorted(name for name in topo.locations if name.startswith("bay"))
     assert len(wells) == 2 * 12 and wells[0] == "bay3_C1" and "bay8_C12" in wells and "bay3_D1" not in wells
     assert {"code_reader", "balance", "heater"} <= set(topo.locations)
-
-
-def test_the_plan_of_the_hand_written_workflows_compiles_to_the_same_vial_journeys():
-    """scan_weigh_rows + heat_rows, written by hand, against the same two processes as a spec."""
-    from orca_workcell.deployment.topology import build_topology as hand_topology
-    from orca_workcell.deployment.workflows import heat_rows, scan_weigh_rows
-
-    def journeys(workflow):
-        return sorted((t.start_position_id, tuple(t.end_position_ids)) for t in workflow.entry_thread_templates)
-
-    hand = hand_topology(InMemoryRuntimeStoreFactory())
-    by_hand = journeys(scan_weigh_rows.build_workflow(hand)) + journeys(heat_rows.build_workflow(hand))
-    plan = compile_spec(spec(scan_weigh=("CE", SCAN_WEIGH), heat=("DF", HEAT)), ControllerConfig())
-    assert journeys(plan.workflow) == sorted(by_hand)
-    assert len(by_hand) == 48 and ("bay3_D7", ("bay8_D7",)) in by_hand
-    assert vial_name(3, "C1") in {t.labware_template.name for t in plan.workflow.entry_thread_templates}
 
 
 def test_a_compiled_plan_runs_both_processes_through_the_cell():

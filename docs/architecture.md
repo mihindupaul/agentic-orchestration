@@ -40,7 +40,7 @@ with a vial that will not read: an Orca workflow composes these from the control
 teachpoints from the deck file); the code reader, balance and heater are separate Orca devices; rack wells are
 plate pads; every vial is labware with a thread of its own, so a vial can sit in the heater while the arm serves
 others. `core.py` (Orca-free) maps each controller outcome for Orca: branchable results as data, busy/fault ->
-refused, bad request -> rejected, lost vial or arm fault -> failed, lost reply -> unknown. `deployment/run.py`
+refused, bad request -> rejected, lost vial or arm fault -> failed, lost reply -> unknown. `runtime.py`
 embeds Orca in-process. Orca itself is not modified.
 
 **Planning agent** (`agent`): Claude, through the SDK's tool runner, looks at the cell and the deck with tools and

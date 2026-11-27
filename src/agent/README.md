@@ -83,7 +83,7 @@ to Claude with the cycles named.
 
 **The compiler is plain code** (`compiler.py`): the spec's bays and wells become the Orca topology, each vial a
 thread from its source well to its destination well, each step an action at its instrument.
-The plan of the two hand-written workflows compiles to the same vial journeys (tested). When a plan heats to
+When a plan heats to
 more than one temperature, the heater cools to the lowest one before the next vial goes in, and it is switched
 off when the run ends.
 

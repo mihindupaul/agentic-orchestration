@@ -33,7 +33,7 @@ make agent-ui                              # load an example, Start planning, th
 ```
 Between demo runs, `make sim-reset` puts the full rack back in bay 3 and empties the rest in under a second.
 More: `make test` runs the tests; [`src/agent/README.md`](src/agent/README.md) explains the agent;
-[`docs/orca-integration.md`](docs/orca-integration.md) the hand-written Orca workflows (`make orca-live`);
+[`docs/orca-integration.md`](docs/orca-integration.md) how the cell appears in Orca, and lessons learned;
 [`ros2/vm/README.md`](ros2/vm/README.md) a full VM instead of Docker.
 
 ## One flow vs three flows
@@ -85,7 +85,7 @@ Tests cover the simulator, the deck file against the simulated cell, labware ope
 |---|---|
 | `workcell_sim` | tested |
 | `workcell_controller` (deck, operations, service, API, CLI; see [its README](src/workcell_controller/README.md)) | tested against the simulator |
-| `orca_workcell` (drivers, devices, deployment package) | drivers tested against the simulator in Orca 2.3.0's environment (`make orca-test`); workflows run live through the controller to the simulator |
+| `orca_workcell` (drivers, devices, Orca embedded) | drivers tested against the simulator in Orca 2.3.0's environment (`make orca-test`); compiled plans run live through the controller to the simulator |
 | `agent` (planner, validator, compiler, window) | tested without the API (a scripted stand-in) and against the simulator; plans run live on the simulator |
 | `ros2/` | scene tested on the Mac; runs in the container (`ros2/docker`) or the UTM VM (`ros2/vm`) |
 

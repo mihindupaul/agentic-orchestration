@@ -29,26 +29,19 @@ never work -> `DriverRejectedError`; a lost vial or arm fault -> `DriverError`; 
 `DriverOutcomeUnknownError`. Results a workflow can branch on (no-read, heater not yet stable) come back as
 data. `SimStationDriver` is the in-memory stand-in Orca uses in `PURE_SIM` runs.
 
-## The deployment package
-`src/orca_workcell/deployment/` is an ordinary Orca deployment package: `topology.py` and `workflows/`.
-Two workflows run together over the cell: `scan_weigh_rows` (rows C and E: code reader, balance, bay 8) and
-`heat_rows` (rows D and F: heater with `heat_c` and `hold_s`, bay 8).
-```
-make sim-up                                  # or the VM: ros2/vm/deploy.sh
-make ctl                                     # controller service on :8700 (SIM_HOST=192.168.64.4 for the VM)
-make orca-live                               # both workflows at once: WORKFLOW="scan_weigh_rows heat_rows"
-make orca-live WORKFLOW=heat_rows VARS="heat_c=50 hold_s=10"
-```
-`run.py` embeds Orca in its own process: it builds the system from the package, starts a `SystemRuntime` and
-submits the workflows. The drivers are ordinary objects in that process, so no Orca daemon or device gateway is
-involved (the Orca CLI's live mode expects devices to connect to its daemon over Orca's own WebSocket protocol).
+## Running Orca in-process
+The planning agent's compiler (`src/agent/compiler.py`) builds an Orca topology and workflow from each plan:
+the rack wells the plan uses, the arm and the three instruments, one thread per vial. `runtime.py` embeds Orca
+in the agent's process: it starts a `SystemRuntime` on the built system and submits the workflow live. The
+drivers are ordinary objects in that process, so no Orca daemon or device gateway is involved (the Orca CLI's
+live mode expects devices to connect to its daemon over Orca's own WebSocket protocol).
 
 Every vial thread starts with `MANUAL_PLACE`: in a live run it waits until its vial is registered at its well.
-`run.py` does that registration itself when a thread asks for it (the same step as Orca's "I placed it"
-remedy); `--no-auto-place` leaves it to an operator. The controller address comes from `CONTROLLER_HOST/PORT`.
+`runtime.py` does that registration itself when a thread asks for it (the same step as Orca's "I placed it"
+remedy).
 
 Orca builds a route between every pair of positions the arm can reach, so build time grows with the square of the
-positions; the topology teaches only rows C-F of bays 3 and 8 (99 positions, about 40 s to build). The tests in
+positions; the compiler teaches only the wells a plan uses (`layout()` in `cell.py`). The tests in
 `tests/orca/test_cell.py` call the drivers directly, the way Orca does, so they need no build.
 
 ## Lessons
@@ -57,7 +50,7 @@ positions; the topology teaches only rows C-F of bays 3 and 8 (99 positions, abo
 3. Register a manually placed rack only once its thread is `AWAITING_MANUAL_PLACE`; registering earlier
    records a second rack and the thread waits forever.
 4. In `PURE_SIM` a manual place fills the slot without calling the device's placed hook.
-5. This release does not call drivers' `_shutdown` when the runtime stops, so `run.py` closes them; an open
+5. This release does not call drivers' `_shutdown` when the runtime stops, so `runtime.py` closes them; an open
    connection otherwise keeps the controller waiting.
 6. Labware types must be in Orca's catalog. There is no 96-vial rack, so the rack is declared as a deep-well
    96 plate (same SBS footprint and grid).
@@ -72,8 +65,9 @@ positions; the topology teaches only rows C-F of bays 3 and 8 (99 positions, abo
     finished. A method cannot branch on an action's result; put decisions inside actions.
 12. Orca reserves a device for the whole of an action, and every action of a thread needs the thread's
     labware at that action's device (even with `inputs=[]`; otherwise it looks for a route to move it).
-    So a wait inside an action blocks every other workflow on that device. Measured with `heat_rows` and
-    `scan_weigh_rows` submitted together: 24.7 s, against 24.4 s one after the other: no overlap.
+    So a wait inside an action blocks every other workflow on that device. Measured with two early hand-written
+    workflows (one scanning and weighing, one heating) submitted together: 24.7 s, against 24.4 s one after
+    the other: no overlap.
     Real overlap needs the Orca-native model: vials as labware threads, the arm as an Orca transporter,
     and scanner, balance and heater as separate devices, so a vial can sit in the heater while the arm
     serves other vials.
@@ -83,5 +77,5 @@ positions; the topology teaches only rows C-F of bays 3 and 8 (99 positions, abo
     types builds in this release, so vials are declared with a plate type.
 15. The Orca CLI and daemon run live workflows only on devices that connected to the daemon over Orca's own
     WebSocket protocol (a device agent with a heartbeat); devices whose drivers were built in-process count as
-    "not connected". Submitting through the runtime directly, as `run.py` does, needs no gateway. The daemon
+    "not connected". Submitting through the runtime directly, as `runtime.py` does, needs no gateway. The daemon
     also keeps the topology it loaded at start: restart it after changing the topology.

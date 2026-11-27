@@ -1,7 +1,6 @@
 """The compiler: a WorkflowSpec in, an Orca system that runs it out. No model involved: plain, tested code.
 
-The hand-written workflows (orca_workcell/deployment/workflows) are the pattern; the compiler builds the same
-shapes from data instead of from a file per job:
+The compiler builds an Orca topology and workflow from data, not from a file per job:
 
   spec                          Orca
   ---------------------------   ---------------------------------------------------------------------------
@@ -48,8 +47,7 @@ from orca.workflow_models.thread_context import ThreadContext
 from orca.workflow_models.workflow_context import WorkflowContext
 from orca.workflow_models.workflow_templates import WorkflowTemplate
 
-from orca_workcell.cell import Balance, CellArm, CodeReader, Heater, layout, well_position
-from orca_workcell.deployment.workflows._vials import VIAL_TYPE
+from orca_workcell.cell import VIAL_TYPE, Balance, CellArm, CodeReader, Heater, layout, well_position
 from orca_workcell.core import ControllerConfig
 from workcell_controller.deck import Deck
 
@@ -285,23 +283,22 @@ def finish(plan: CompiledPlan) -> dict:
     return plan.results
 
 
-async def run(plan: CompiledPlan, live: bool = True, auto_place: bool = True, on_state=None,
-              on_submitted=None) -> dict:
-    """Build the Orca system for `plan`, run it, leave the heater off, and return the per-vial results.
+async def run(plan: CompiledPlan, on_state=None, on_submitted=None) -> dict:
+    """Build the Orca system for `plan`, run it live, leave the heater off, and return the per-vial results.
     `on_state(text)` hears "building", "running" and "finished"; `on_submitted(runtime, execution_id)` is
-    passed to run_built."""
+    passed to run_workflow."""
     say = on_state or (lambda text: None)
-    from orca_workcell.deployment.run import run_built
     from orca_workcell.core import CellCore
+    from orca_workcell.runtime import run_workflow
 
     say("building")
     built = await build(plan)
     try:
         say("running")
-        await run_built(built, [plan.spec.name], live=live, auto_place=auto_place, on_submitted=on_submitted)
+        await run_workflow(built, plan.spec.name, on_submitted=on_submitted)
     finally:
         say("finished")
-        if live and heat_targets(plan.spec):         # the heater is left at the last target: switch it off
+        if heat_targets(plan.spec):                  # the heater is left at the last target: switch it off
             core = CellCore(plan.config)
             try:
                 await core.execute("heater_off")

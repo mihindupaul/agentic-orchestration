@@ -19,7 +19,7 @@ One `pyproject.toml`, packages under `src/`; non-Python parts get their own top-
 |---|---|---|
 | `src/workcell_sim/` | the device simulator (stdlib only) | `docs/assumptions.md` |
 | `src/workcell_controller/` | deck file, operations, the service (`make ctl`), the device shell (`make cli`) | its `README.md` |
-| `src/orca_workcell/` | the Orca plug-in; `deployment/` holds two hand-written workflows and `run.py` | `docs/orca-integration.md` |
+| `src/orca_workcell/` | the Orca plug-in: drivers and resources (`cell.py`, `core.py`), Orca embedded (`runtime.py`) | `docs/orca-integration.md` |
 | `src/agent/` | the planning agent: `spec.py`, `tools.py`, `planner.py`, `validator.py`, `compiler.py`, `ui.py` | its `README.md` |
 | `ros2/` | the simulator's ROS 2 host and RViz view; `docker/` (default) and `vm/` | `docs/simulator-vm.md` |
 | `examples/agent_requests/` | example requests as text files (`# expect: plan` or `no plan`) | its `README.md` |

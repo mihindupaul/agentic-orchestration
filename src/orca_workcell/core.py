@@ -54,8 +54,8 @@ class ControllerConfig:
 
     @classmethod
     def from_env(cls) -> "ControllerConfig":
-        """The controller's address from the environment (CONTROLLER_HOST / CONTROLLER_PORT), so the deployment
-        package needs no code change per site."""
+        """The controller's address from the environment (CONTROLLER_HOST / CONTROLLER_PORT), so a site needs
+        no code change."""
         return cls(ctl_host=os.environ.get("CONTROLLER_HOST", "127.0.0.1"),
                    ctl_port=int(os.environ.get("CONTROLLER_PORT", "8700")))
 
