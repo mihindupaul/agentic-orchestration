@@ -5,7 +5,7 @@
  Container or VM (ROS2 + RViz)                    |  macOS host
                                                   |
  workcell_sim (devices, world, physics)          |  workcell_controller (controller, its CLI)
-   sim_node: hosts the simulator, publishes ----> RViz   orca_workcell  (Orca driver)
+   sim_node: hosts the simulator, publishes ----> RViz   agent/scheduler (Orca driver)
    robot_state_publisher, markers, TF             |  agent          (AI planning agent, its window)
                                                   |
         device TCP ports 29999 30003 30004  <-----+----- only link between the two sides

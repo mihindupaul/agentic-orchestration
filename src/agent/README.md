@@ -29,6 +29,7 @@ Built step by step:
 | `validator.py` | the spec against the deck: racks present, vials there, destination wells free or emptied, no sharing, transit wells for swaps |
 | `compiler.py` | spec -> Orca topology and workflow, one thread per vial; evaluates the rules; runs it |
 | `ui.py` | the window (PySide6) |
+| `scheduler/` | Orca's driver plug-in for the workcell (`cell.py`, `core.py`) and Orca embedded in this process (`runtime.py`); see [`docs/orca-integration.md`](../../docs/orca-integration.md) |
 | `prompts/system_prompt.md` | the system prompt |
 | `examples.py` | loads the example requests in [`examples/agent_requests/`](../../examples/agent_requests/) |
 

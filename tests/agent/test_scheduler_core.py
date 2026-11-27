@@ -7,7 +7,7 @@ import asyncio
 
 import pytest
 
-from orca_workcell import CoreFailed, CoreRefused, CoreRejected, ControllerConfig, CellCore
+from agent.scheduler import CoreFailed, CoreRefused, CoreRejected, ControllerConfig, CellCore
 from workcell_controller import Controller
 from workcell_controller.api import serve
 from workcell_sim import Simulator, Timing

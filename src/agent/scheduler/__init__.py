@@ -1,4 +1,5 @@
-"""Orca plug-in for the workcell: the arm, the code reader, the balance and the heater as Orca resources.
+"""The agent's scheduler: the workcell as Orca resources (Orca driver plug-in), so Orca schedules a compiled
+plan over the arm, the code reader, the balance and the heater.
 
   core.py     Orca-free: one action per controller operation, outcomes sorted the way Orca needs them.
   cell.py     the Orca drivers and resources (arm as transporter, instruments as devices, rack wells as
@@ -10,8 +11,7 @@ The topology and workflow of a job come from the planning agent's compiler (src/
 Only core imports without Orca installed; the rest needs Orca and cheshire-drivers (.venv-orca).
 """
 
-from .core import (ACTIONS, CoreFailed, CoreRefused, CoreRejected, CoreUnknown, ControllerConfig,
-                           CellCore)
+from .core import ACTIONS, CellCore, ControllerConfig, CoreFailed, CoreRefused, CoreRejected, CoreUnknown
 
 __all__ = ["ACTIONS", "CellCore", "ControllerConfig", "CoreRefused", "CoreRejected", "CoreFailed",
            "CoreUnknown"]

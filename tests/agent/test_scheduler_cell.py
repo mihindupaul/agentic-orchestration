@@ -12,9 +12,9 @@ import pytest
 pytest.importorskip("orca")
 from cheshire_drivers.driver_errors import DriverError, DriverRefusedError, DriverRejectedError  # noqa: E402
 
-from orca_workcell.cell import (BalanceDriver, CellArmDriver, CodeReaderDriver, HeaterDriver,  # noqa: E402
-                                   SimStationDriver, address, layout)
-from orca_workcell.core import ControllerConfig  # noqa: E402
+from agent.scheduler.cell import (BalanceDriver, CellArmDriver, CodeReaderDriver, HeaterDriver,  # noqa: E402
+                                  SimStationDriver, address, layout)
+from agent.scheduler.core import ControllerConfig  # noqa: E402
 from workcell_controller import Controller  # noqa: E402
 from workcell_controller.api import serve  # noqa: E402
 from workcell_controller.deck import Deck  # noqa: E402

@@ -47,8 +47,8 @@ from orca.workflow_models.thread_context import ThreadContext
 from orca.workflow_models.workflow_context import WorkflowContext
 from orca.workflow_models.workflow_templates import WorkflowTemplate
 
-from orca_workcell.cell import VIAL_TYPE, Balance, CellArm, CodeReader, Heater, layout, well_position
-from orca_workcell.core import ControllerConfig
+from .scheduler.cell import VIAL_TYPE, Balance, CellArm, CodeReader, Heater, layout, well_position
+from .scheduler.core import ControllerConfig
 from workcell_controller.deck import Deck
 
 from .spec import Heat, Process, Scan, Weigh, WorkflowSpec, decide, decide_route
@@ -288,8 +288,8 @@ async def run(plan: CompiledPlan, on_state=None, on_submitted=None) -> dict:
     `on_state(text)` hears "building", "running" and "finished"; `on_submitted(runtime, execution_id)` is
     passed to run_workflow."""
     say = on_state or (lambda text: None)
-    from orca_workcell.core import CellCore
-    from orca_workcell.runtime import run_workflow
+    from .scheduler.core import CellCore
+    from .scheduler.runtime import run_workflow
 
     say("building")
     built = await build(plan)

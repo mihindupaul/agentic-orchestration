@@ -9,7 +9,7 @@ neighbours:
  agent        request -> Claude (plans only) -> WorkflowSpec (data)
                 -> validator (the deck) -> a person approves
                 -> compiler -> Orca workflow
- orca_workcell  Orca schedules one thread per vial over the arm
+ agent/scheduler  Orca schedules one thread per vial over the arm
                 and the instruments; drivers call the controller
  workcell_controller  one owner of the hardware;  ── TCP ──────────>  workcell_sim (devices)
                 deck file: names -> coordinates                        ros2: RViz view, noVNC
@@ -36,20 +36,20 @@ stations. An admin port (sim only) loads racks, reports state and injects faults
 **Rack jobs are workflows, not controller code.** Which vials, in what order, how many scan retries, what to do
 with a vial that will not read: an Orca workflow composes these from the controller's operations.
 
-**Orca plug-in** (`orca_workcell`): the cell as Orca resources. The arm is an Orca transporter (`CellArm`,
-teachpoints from the deck file); the code reader, balance and heater are separate Orca devices; rack wells are
-plate pads; every vial is labware with a thread of its own, so a vial can sit in the heater while the arm serves
-others. `core.py` (Orca-free) maps each controller outcome for Orca: branchable results as data, busy/fault ->
-refused, bad request -> rejected, lost vial or arm fault -> failed, lost reply -> unknown. `runtime.py`
-embeds Orca in-process. Orca itself is not modified.
-
 **Planning agent** (`agent`): Claude, through the SDK's tool runner, looks at the cell and the deck with tools and
 hands in a `WorkflowSpec`: processes built from a fixed menu of steps (scan, weigh, heat), per-vial rules,
 destination wells, transit wells for swaps and routes decided mid-flight. The model never writes code. Plain code
 does everything that has to be right: the validator checks the spec against the live deck, a person approves it,
 and the compiler builds the Orca topology and workflow and runs it. Per-vial decisions are made in plain code
-inside each vial's thread while it runs; no model is called during a run. A PySide6 window (Describe > Plan > Run) is
-the way in.
+inside each vial's thread while it runs; no model is called during a run. A PySide6 window (Describe > Plan >
+Run) is the way in.
+
+**Scheduler** (`agent/scheduler`, inside the agent): Orca's driver plug-in, the cell as Orca resources. The arm
+is an Orca transporter (`CellArm`, teachpoints from the deck file); the code reader, balance and heater are
+separate Orca devices; rack wells are plate pads; every vial is labware with a thread of its own, so a vial can
+sit in the heater while the arm serves others. `core.py` (Orca-free) maps each controller outcome for Orca:
+branchable results as data, busy/fault -> refused, bad request -> rejected, lost vial or arm fault -> failed,
+lost reply -> unknown. `runtime.py` embeds Orca in the agent's process. Orca itself is not modified.
 
 **Visualisation** (`ros2/`): a ROS 2 node hosts the simulator and publishes the arm, racks, vials and instrument
 activity to RViz, viewed in the browser over noVNC. It runs in a container by default, or in a VM. The host side

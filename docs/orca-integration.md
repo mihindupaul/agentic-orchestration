@@ -12,7 +12,7 @@ it lands. Orca and cheshire-drivers are source-available under SSPL-1.0. This re
 does not include their code.
 
 ## How the workcell appears in Orca
-`src/orca_workcell/cell.py` describes the hardware the way Orca expects:
+`src/agent/scheduler/cell.py` describes the hardware the way Orca expects:
 - `CellArm`: an Orca transporter (`ITransporterDriver`). Orca reserves it only while it moves a vial; a pick or
   place at a taught position becomes a controller pick or place (`bay3_C1` -> `3 C1`, `code_reader` -> `scanner`).
   Teachpoints come from the controller's deck file. Arm controls the cell does not offer (raw coordinates,
@@ -42,7 +42,7 @@ remedy).
 
 Orca builds a route between every pair of positions the arm can reach, so build time grows with the square of the
 positions; the compiler teaches only the wells a plan uses (`layout()` in `cell.py`). The tests in
-`tests/orca/test_cell.py` call the drivers directly, the way Orca does, so they need no build.
+`tests/agent/test_scheduler_cell.py` call the drivers directly, the way Orca does, so they need no build.
 
 ## Lessons
 1. A custom `Device` subclass with its own `KIND` is the natural fit; posing as a liquid handler is not needed.

@@ -12,7 +12,7 @@ pytest.importorskip("pydantic")
 
 from agent.compiler import build_topology, compile_spec, run, vial_name  # noqa: E402
 from agent.spec import WorkflowSpec  # noqa: E402
-from orca_workcell.core import ControllerConfig  # noqa: E402
+from agent.scheduler.core import ControllerConfig  # noqa: E402
 from workcell_controller import Controller  # noqa: E402
 from workcell_controller.api import serve  # noqa: E402
 from workcell_sim import Simulator, Timing  # noqa: E402

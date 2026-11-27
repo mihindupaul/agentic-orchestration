@@ -10,7 +10,7 @@ agent.
 "scan and weigh row C, skip the heat under 2 g"
         │
 planning agent ──(spec, checked, approved)──> Orca ──(driver plug-in)──> workcell controller ──TCP──> devices
-  src/agent            compiled at runtime            orca_workcell      src/workcell_controller   src/workcell_sim
+  src/agent            compiled at runtime            agent/scheduler    src/workcell_controller   src/workcell_sim
   (Claude API)                                                              (Mac)                     (ROS2 + RViz)
 ```
 
@@ -51,7 +51,7 @@ comparison can be run again on the simulator.
 ## Built on Orca
 The workflow layer is [Orca](https://github.com/Cheshire-Labs/orca) by [Cheshire Labs](https://cheshirelabs.io), a lab
 automation scheduler and workflow orchestrator, with its driver layer
-[cheshire-drivers](https://github.com/Cheshire-Labs/cheshire-drivers). The plug-in in `src/orca_workcell` presents
+[cheshire-drivers](https://github.com/Cheshire-Labs/cheshire-drivers). The plug-in in `src/agent/scheduler` presents
 the workcell to Orca as an arm (a transporter) and three instruments (devices), and Orca workflows run live on the
 simulator through the controller: two workflows running together kept every instrument busy, 48 vials scanned,
 weighed or heated in 14.5 minutes. See [`docs/orca-integration.md`](docs/orca-integration.md) for how it fits
@@ -85,7 +85,7 @@ Tests cover the simulator, the deck file against the simulated cell, labware ope
 |---|---|
 | `workcell_sim` | tested |
 | `workcell_controller` (deck, operations, service, API, CLI; see [its README](src/workcell_controller/README.md)) | tested against the simulator |
-| `orca_workcell` (drivers, devices, Orca embedded) | drivers tested against the simulator in Orca 2.3.0's environment (`make orca-test`); compiled plans run live through the controller to the simulator |
+| `agent/scheduler` (Orca drivers, devices, Orca embedded) | drivers tested against the simulator in Orca 2.3.0's environment (`make orca-test`); compiled plans run live through the controller to the simulator |
 | `agent` (planner, validator, compiler, window) | tested without the API (a scripted stand-in) and against the simulator; plans run live on the simulator |
 | `ros2/` | scene tested on the Mac; runs in the container (`ros2/docker`) or the UTM VM (`ros2/vm`) |
 
@@ -97,7 +97,7 @@ Directions this could grow in, kept here as a record of what the project does no
 planned.
 
 1. **Controller reflection.** The controller would describe itself through its API: its devices and their
-   operations, the stations, the bays and the deck geometry. The Orca topology (`orca_workcell/cell.py`,
+   operations, the stations, the bays and the deck geometry. The Orca topology (`agent/scheduler/cell.py`,
    `layout()`) and the agent's `describe_cell` would then be derived from that description instead of being
    written for this one cell, so a different deck or an extra instrument would need no code change on the Orca
    or agent side.

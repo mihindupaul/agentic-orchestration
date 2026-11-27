@@ -19,8 +19,8 @@ One `pyproject.toml`, packages under `src/`; non-Python parts get their own top-
 |---|---|---|
 | `src/workcell_sim/` | the device simulator (stdlib only) | `docs/assumptions.md` |
 | `src/workcell_controller/` | deck file, operations, the service (`make ctl`), the device shell (`make cli`) | its `README.md` |
-| `src/orca_workcell/` | the Orca plug-in: drivers and resources (`cell.py`, `core.py`), Orca embedded (`runtime.py`) | `docs/orca-integration.md` |
 | `src/agent/` | the planning agent: `spec.py`, `tools.py`, `planner.py`, `validator.py`, `compiler.py`, `ui.py` | its `README.md` |
+| `src/agent/scheduler/` | the scheduler: Orca's driver plug-in for the cell (`cell.py`, `core.py`), Orca embedded (`runtime.py`) | `docs/orca-integration.md` |
 | `ros2/` | the simulator's ROS 2 host and RViz view; `docker/` (default) and `vm/` | `docs/simulator-vm.md` |
 | `examples/agent_requests/` | example requests as text files (`# expect: plan` or `no plan`) | its `README.md` |
 | `tests/` | one folder per package, the real stack in-process | the testing pattern below |
@@ -72,7 +72,7 @@ in `tests/controller/test_controller.py`). Set up state and faults through `sim.
   `workcell_controller/decks/workcell.json` (the controller's copy); `tests/controller/test_deck.py` fails until
   they agree.
 - Do not modify Orca. Integration goes through `use_device_factory` and a driver provider; keep Orca-facing logic
-  in `core.py` and the drivers in `cell.py` thin.
+  in `agent/scheduler/core.py` and the drivers in `cell.py` thin.
 - The agent plans only: the model outputs a `WorkflowSpec` (data, never code), plain code validates and compiles
   it, a person approves it, and no model is called while a plan runs.
 - Python >= 3.10; stdlib only for the simulator and the controller. Time-dependent tests use

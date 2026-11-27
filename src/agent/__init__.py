@@ -14,12 +14,19 @@ The model only ever produces data, a WorkflowSpec. Plain code does everything th
   compiler.py    WorkflowSpec -> Orca topology + workflow (needs Orca); rules are evaluated here, per vial
   ui.py          the window: Describe > Plan > Run (.venv-orca/bin/python -m agent.ui, or make agent-ui)
   prompts/       the system prompt
+  scheduler/     Orca's driver plug-in for the workcell, and Orca embedded in this process (needs Orca)
 
 Needs the `agent` extra (anthropic, pydantic) and API credentials; the tests need neither.
 """
 
-from .inventory import ControllerInventory, DemoInventory
-from .planner import PlanningError, PlanResult, plan_workflow
-from .spec import WorkflowSpec
+# Loaded on first use, so `agent.scheduler.core` (Orca- and SDK-free) imports without the agent extra.
+_EXPORTS = {"plan_workflow": "planner", "PlanResult": "planner", "PlanningError": "planner",
+            "WorkflowSpec": "spec", "ControllerInventory": "inventory", "DemoInventory": "inventory"}
+__all__ = list(_EXPORTS)
 
-__all__ = ["plan_workflow", "PlanResult", "PlanningError", "WorkflowSpec", "ControllerInventory", "DemoInventory"]
+
+def __getattr__(name: str):
+    if name in _EXPORTS:
+        from importlib import import_module
+        return getattr(import_module(f".{_EXPORTS[name]}", __name__), name)
+    raise AttributeError(f"module {__name__!r} has no attribute {name!r}")

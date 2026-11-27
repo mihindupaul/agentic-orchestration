@@ -87,7 +87,7 @@ class RunWorker(QThread):
         self.stopping = False
 
     def run(self) -> None:
-        from orca_workcell.core import ControllerConfig
+        from .scheduler.core import ControllerConfig
 
         from .compiler import compile_spec, run
 
