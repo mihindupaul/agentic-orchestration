@@ -304,3 +304,7 @@ def test_a_spec_with_routes_is_accepted():
     result = plan_workflow("weigh row C; heavier than 1 g to bay 8, otherwise back", DemoInventory(), client=client)
     assert result.ready and result.spec.processes[0].routes[0].then.bay == 8
     assert len(result.report.candidates) == 12
+
+
+def test_the_system_prompt_keeps_claude_to_workcell_planning():
+    assert "## Only workcell planning" in SYSTEM_PROMPT and "light-hearted line" in SYSTEM_PROMPT

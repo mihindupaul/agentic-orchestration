@@ -79,3 +79,13 @@ positions; the compiler teaches only the wells a plan uses (`layout()` in `cell.
     WebSocket protocol (a device agent with a heartbeat); devices whose drivers were built in-process count as
     "not connected". Submitting through the runtime directly, as `runtime.py` does, needs no gateway. The daemon
     also keeps the topology it loaded at start: restart it after changing the topology.
+16. A thread can decide between steps after all: it awaits the event the previous action emits
+    (`ctx.wait_for`), then decides in plain code. That is how per-vial rules and routes work (see lesson 11).
+17. `orca.park(location)` works in the middle of a thread: the vial moves there and the thread goes on. Swaps
+    use it for transit wells, routes to put a vial in the well they chose.
+18. A thread's `end` takes a list of candidate positions; a thread that parks at one of them ends there, with no
+    extra move.
+19. Orca holds a move into an occupied position until the vial there is picked, but two vials with steps can
+    still block each other at an instrument (one waits in the scanner for a well whose vial needs the scanner).
+    Orca then parks vials on free pads to break the deadlock (logged at INFO as "Deadlock resolution"); waiting
+    before the first step until the vial in the destination has left avoids it.

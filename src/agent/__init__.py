@@ -12,7 +12,7 @@ The model only ever produces data, a WorkflowSpec. Plain code does everything th
                  mark_plan_ready
   planner.py     the Claude API call (the SDK's tool runner) and the checks on its result
   compiler.py    WorkflowSpec -> Orca topology + workflow (needs Orca); rules are evaluated here, per vial
-  ui.py          the window: Describe > Plan > Run (.venv-orca/bin/python -m agent.ui, or make agent-ui)
+  ui.py          the window: Describe > Run (.venv-orca/bin/python -m agent.ui, or make agent-ui)
   prompts/       the system prompt
   scheduler/     Orca's driver plug-in for the workcell, and Orca embedded in this process (needs Orca)
 

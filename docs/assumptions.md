@@ -6,7 +6,7 @@ instrument. Everything below is invented for the simulator, or follows a public 
 - Deck layout (`simulator/config.py`): an invented benchtop arrangement. Square deck
   (840 x 840 mm) with the arm base near the middle of the back edge. Eight landscape bays in a 2 x 4 grid on the
   operator's left, numbered in reading order from the back-left (1 2 / 3 4 / 5 6 / 7 8). Code reader, heater and
-  balance wells spread over the operator's right. Dimensions are approximate, sized so a bay fits an SBS rack with
+  balance wells spread over the operator's right. Dimensions are rounded numbers, sized so a bay fits an SBS rack with
   clearance.
 - The controller's deck file (`src/controller/decks/workcell.json`) repeats the bay, well and station positions as
   the controller's own copy, the way a real cell keeps taught positions. `tests/controller/test_deck.py` checks that it

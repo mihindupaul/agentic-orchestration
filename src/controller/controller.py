@@ -8,7 +8,7 @@ It adds what a shared instrument needs on top of `operations.py`:
     operator has made the cell safe and called `clear_fault`;
   - a log of what was done.
 It makes no decisions about samples. Sequencing operations into a rack job, retrying, and deciding what
-to do with a tube that would not scan belong to the workflow that calls it (Orca, from stage 2 on).
+to do with a tube that would not scan belong to the workflow that calls it (Orca, compiled by the agent).
 """
 
 from __future__ import annotations

@@ -41,8 +41,8 @@ hands in a `WorkflowSpec`: processes built from a fixed menu of steps (scan, wei
 destination wells, transit wells for swaps and routes decided mid-flight. The model never writes code. Plain code
 does everything that has to be right: the validator checks the spec against the live deck, a person approves it,
 and the compiler builds the Orca topology and workflow and runs it. Per-vial decisions are made in plain code
-inside each vial's thread while it runs; no model is called during a run. A PySide6 window (Describe > Plan >
-Run) is the way in.
+inside each vial's thread while it runs; no model is called during a run. A PySide6 window (Describe > Run) is
+the way in.
 
 **Scheduler** (`agent/scheduler`, inside the agent): Orca's driver plug-in, the cell as Orca resources. The arm
 is an Orca transporter (`CellArm`, teachpoints from the deck file); the code reader, balance and heater are

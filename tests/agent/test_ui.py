@@ -27,26 +27,87 @@ def window():
     logging.getLogger("orca").removeHandler(w.log_feed)
 
 
-def test_examples_load_into_the_request(window):
-    w, _ = window
+@pytest.fixture(autouse=True)
+def no_api(monkeypatch):
+    """Picking an example sends it: every test gets a planner that never calls the API (a test may put its own)."""
+    from agent import ui
+
+    class Silent(ui.PlanWorker):
+        def run(self):
+            pass
+    monkeypatch.setattr(ui, "PlanWorker", Silent)
+
+
+def _settle(w, app):
+    """Let the planner (a stand-in) finish and its signals arrive."""
+    if w.planner is not None:
+        w.planner.wait(2000)
+    app.processEvents()
+
+
+def test_picking_an_example_sends_it_as_a_new_conversation(window):
+    w, app = window
     actions = w.load_button.menu().actions()
     assert len(actions) >= 10
+    w.new_conversation()
+    w.activity = [("you", "an older request")]
     actions[0].trigger()
-    assert w.request.toPlainText().startswith("Heat the first four vials of column 6")
+    _settle(w, app)
+    assert w.activity[0][0] == "you" and w.activity[0][1].startswith("Heat the first four vials of column 6")
+    assert len(w.activity) == 1 and w.message.toPlainText() == ""                # sent, the old one gone
 
 
-def test_a_plan_is_shown_with_its_size_and_the_deck_check(window):
+def test_an_example_picked_while_claude_plans_drops_the_old_conversation(window, monkeypatch):
+    import threading
+
+    from agent import ui
+    w, app = window
+    w.new_conversation()
+    release = threading.Event()
+
+    class Slow(ui.PlanWorker):                               # answers only when released
+        def run(self):
+            release.wait(2)
+            self.planned.emit(_plan_result(ready=True))
+    monkeypatch.setattr(ui, "PlanWorker", Slow)
+    w.message.setPlainText("the old request")
+    w.send()
+    old = w.planner
+    assert w.load_button.isEnabled() and w.new_button.isEnabled() and not w.send_button.isEnabled()
+
+    class Quiet(ui.PlanWorker):
+        def run(self):
+            pass
+    monkeypatch.setattr(ui, "PlanWorker", Quiet)
+    w.load_button.menu().actions()[0].trigger()             # a new conversation while Claude still works
+    assert old in w.abandoned and w.planner is not old
+    release.set()
+    old.wait(2000)
+    app.processEvents()
+    assert w.plans == [] and "the old request" not in w.reply.toPlainText()  # the old answer is dropped
+    assert w.reply.toPlainText().strip().startswith("Heat the first four vials")
+
+
+def test_a_confirmed_plan_shows_its_size_and_deck_check_and_its_structure_in_details(window, monkeypatch):
+    from PySide6.QtCore import QUrl
+
+    from agent.ui import PlanDetails
     w, _ = window
     spec = WorkflowSpec.model_validate({"name": "t", "summary": "s", "processes": [
         {"id": "p", "source": {"bay": 3, "rows": "C"}, "destination": {"bay": 8}, "steps": [
             {"op": "scan"}, {"op": "weigh"},
             {"op": "heat", "celsius": 40, "hold_s": 5, "rules": [{"when": {"value": "grams", "lt": 2}, "then": "skip"}]}]}]})
     report = validate(spec, DemoInventory())
-    w._show_spec(spec)
-    w._show_findings(spec, report)
+    w.new_conversation()
+    w.planned(SimpleNamespace(spec=spec, ready=True, report=report, reply="Planned.", conversation=[]))
+    text = w.reply.toPlainText()
+    assert "12 vials, up to 48 arm moves, 0 to 12 heater visits" in text and "Deck check: no problems found." in text
+    shown = []
+    monkeypatch.setattr(w, "show_centered", lambda dialog: shown.append(dialog) or 0)
+    w.reply.anchorClicked.emit(QUrl("details:0"))                        # Details: the structure, in a popup
+    assert isinstance(shown[0], PlanDetails)
+    assert shown[0].tree.topLevelItem(0).child(0).child(2).child(0).text(0) == "if grams < 2.0: skip"
     w._fill_table(spec, report)
-    assert "12 vials, up to 48 arm moves, 0 to 12 heater visits" in w.findings.text()
-    assert w.tree.topLevelItem(0).child(0).child(2).child(0).text(0) == "if grams < 2.0: skip"
     assert w.table.rowCount() == 12 and w.table.item(0, 0).text() == "bay 3 C1 -> bay 8 C1"
 
 
@@ -66,46 +127,86 @@ QUESTION = SimpleNamespace(spec=None, ready=False, report=None, reply="Which tem
     {"role": "user", "content": "Heat row E"}, {"role": "assistant", "content": "Which temperature?"}])
 
 
-def test_a_question_from_claude_pops_up_and_an_answer_continues_the_conversation(window, monkeypatch):
-    w, _ = window
-    asked, continued = [], []
-    monkeypatch.setattr(w, "ask_person", lambda question: asked.append(question) or "50 C, 10 s")
-    monkeypatch.setattr(w, "_ask", continued.append)
+def test_a_question_from_claude_stays_in_the_conversation_and_the_next_message_answers_it(window, monkeypatch):
+    from agent import ui
+    w, app = window
+    w.new_conversation()
     w.planned(QUESTION)
-    assert asked == ["Which temperature?"] and continued == ["50 C, 10 s"]
-    assert w.conversation == QUESTION.conversation and not w.run_button.isEnabled()
+    assert w.pages.currentIndex() == ui.DESCRIBE and w.state.text() == "Claude is waiting for your answer"
+    assert "Which temperature?" in w.reply.toPlainText() and w.send_button.isEnabled()
+    assert not w.run_button.isEnabled() and 'href="run:' not in w.reply.toHtml()
+
+    histories = []
+
+    class Planner(ui.PlanWorker):                                # records what it was given, then asks again
+        def run(self):
+            histories.append((self.request, self.history))
+            self.planned.emit(QUESTION)
+    monkeypatch.setattr(ui, "PlanWorker", Planner)
+    w.message.setPlainText("50 C, 10 s")
+    w.send()
+    w.planner.wait(2000)
+    app.processEvents()
+    assert histories == [("50 C, 10 s", QUESTION.conversation)]           # the same conversation goes on
+    assert w.message.toPlainText() == ""
+    assert w.reply.toPlainText().index("Which temperature?") < w.reply.toPlainText().index("50 C, 10 s")
 
 
-def test_abort_stops_the_planning(window, monkeypatch):
-    w, _ = window
-    monkeypatch.setattr(w, "ask_person", lambda question: None)
-    monkeypatch.setattr(w, "_ask", lambda text: pytest.fail("planning should have stopped"))
-    w.planned(QUESTION)
-    assert w.state.text() == "planning stopped" and not w.run_button.isEnabled()
+def test_enter_sends_and_shift_enter_starts_a_new_line(window, monkeypatch):
+    from PySide6.QtCore import QEvent, Qt
+    from PySide6.QtGui import QKeyEvent
+    w, app = window
+    sent = []
+    monkeypatch.setattr(w, "send", lambda: sent.append(w.message.toPlainText()))
+    w.message.setPlainText("first line")
+    w.message.moveCursor(w.message.textCursor().MoveOperation.End)
+    app.sendEvent(w.message, QKeyEvent(QEvent.KeyPress, Qt.Key_Return, Qt.ShiftModifier, "\r"))
+    assert sent == [] and w.message.toPlainText().count("\n") == 1           # a new line, nothing sent
+    app.sendEvent(w.message, QKeyEvent(QEvent.KeyPress, Qt.Key_Return, Qt.NoModifier, "\r"))
+    assert sent == ["first line\n"]
 
 
-def test_the_question_dialog_shows_the_question_and_returns_the_answer(window):
-    from agent.ui import QuestionDialog
-    dialog = QuestionDialog("Which **temperature**?")
-    assert "Which temperature?" in dialog.findChild(QTextBrowser).toPlainText()
-    assert dialog.answer() is None                      # nothing typed: no answer
-    dialog.box.setPlainText("  50 C  ")
-    assert dialog.answer() == "50 C"
+def test_send_waits_while_claude_is_planning(window, monkeypatch):
+    import threading
+
+    from agent import ui
+    w, app = window
+    w.new_conversation()
+    go = threading.Event()
+
+    class Planner(ui.PlanWorker):
+        def run(self):
+            go.wait(2)
+            self.planned.emit(QUESTION)
+    monkeypatch.setattr(ui, "PlanWorker", Planner)
+    w.message.setPlainText("Heat row E")
+    w.send()
+    try:
+        assert not w.send_button.isEnabled() and w.new_button.isEnabled() and w.planning()
+        w.message.setPlainText("again")
+        w.send()                                                 # ignored while planning
+        assert w.message.toPlainText() == "again"
+        assert w.reply.toPlainText().strip().endswith("Claude is planning ...")
+    finally:
+        go.set()
+        w.planner.wait(2000)
+        app.processEvents()
+    assert w.send_button.isEnabled() and not w.planning()
 
 
-def test_loading_an_example_clears_the_previous_plan_and_run(window):
-    w, _ = window
+def test_picking_an_example_clears_the_previous_plan_and_run(window):
+    w, app = window
     w.reply.setPlainText("old conversation")
-    w.findings.setText("old findings")
     w.feed.appendPlainText("old feed line")
     w.table.setRowCount(3)
     w.run_button.setEnabled(True)
     w.conversation = [{"role": "user", "content": "old"}]
     w.load_button.menu().actions()[1].trigger()
-    assert w.request.toPlainText().startswith("Heat the first four vials of column 6") and "column 12" in w.request.toPlainText()
-    assert not w.reply.toPlainText() and not w.findings.text() and not w.feed.toPlainText()
-    assert w.table.rowCount() == 0 and w.tree.topLevelItemCount() == 0 and not w.run_button.isEnabled()
-    assert w.conversation == [] and w.state.text() == "idle"
+    _settle(w, app)
+    text = w.reply.toPlainText()
+    assert "Heat the first four vials of column 6" in text and "column 12" in text and "old conversation" not in text
+    assert not w.feed.toPlainText() and w.table.rowCount() == 0 and not w.run_button.isEnabled()
+    assert w.conversation == []
 
 
 def _plan_result(ready: bool):
@@ -115,16 +216,55 @@ def _plan_result(ready: bool):
                            conversation=[{"role": "user", "content": "r"}, {"role": "assistant", "content": "Planned."}])
 
 
-def test_run_is_offered_only_for_a_plan_marked_ready(window, monkeypatch):
+def test_run_is_offered_only_for_a_plan_marked_ready_and_the_window_stays_on_the_chat(window):
+    from agent.ui import DESCRIBE, RUN
     w, _ = window
     w.demo_deck.setChecked(False)
-    asked = []
-    monkeypatch.setattr(w, "ask_person", lambda question: asked.append(question) or None)
+    w.new_conversation()
     w.planned(_plan_result(ready=False))                 # accepted but not ready: Claude wants an answer
-    assert asked == ["Planned."] and not w.run_button.isEnabled() and w.tree.topLevelItemCount() == 1
-    w.tree.clear()
+    assert not w.run_button.isEnabled() and RUN not in w.reachable_steps()
     w.planned(_plan_result(ready=True))
-    assert w.run_button.isEnabled() and w.state.text().startswith("planned") and asked == ["Planned."]
+    assert w.run_button.isEnabled() and w.state.text().startswith("planned") and w.pages.currentIndex() == DESCRIBE
+
+
+def test_a_message_after_a_ready_plan_refines_it_in_the_same_conversation(window, monkeypatch):
+    from agent import ui
+    w, app = window
+    w.new_conversation()
+    w.planned(_plan_result(ready=True))
+    w.step_bar.buttons[ui.DESCRIBE].click()
+    histories = []
+
+    class Planner(ui.PlanWorker):
+        def run(self):
+            histories.append(self.history)
+    monkeypatch.setattr(ui, "PlanWorker", Planner)
+    w.message.setPlainText("make it 50 C")
+    w.send()
+    assert w.reachable_steps() == {ui.DESCRIBE}                       # the old plan is gone until the new one
+    w.planner.wait(2000)
+    app.processEvents()
+    assert histories == [_plan_result(ready=True).conversation]
+    w.new_conversation()                                     # Claude never answered: start again
+
+
+def test_the_message_hint_shows_only_before_the_conversation_starts(window):
+    w, _ = window
+    w.new_conversation()
+    assert w.message.placeholderText().startswith("Message Claude")
+    w.planned(QUESTION)
+    assert w.message.placeholderText() == ""
+    w.new_conversation()
+    assert w.message.placeholderText().startswith("Message Claude")
+
+
+def test_new_conversation_clears_the_chat_and_the_plan(window):
+    w, _ = window
+    w.planned(_plan_result(ready=True))
+    w.message.setPlainText("half typed")
+    w.new_button.click()
+    assert w.activity == [] and w.reply.toPlainText() == "" and w.message.toPlainText() == ""
+    assert w.result is None and w.plans == [] and w.reachable_steps() == {w.pages.currentIndex()}
 
 
 def test_the_window_shows_its_name_in_the_title_bar_and_the_steps_on_top(window):
@@ -134,36 +274,40 @@ def test_the_window_shows_its_name_in_the_title_bar_and_the_steps_on_top(window)
     assert top.itemAt(0).widget() is w.step_bar and top.indexOf(w.gear) == top.count() - 1
 
 
-def test_the_window_walks_through_describe_plan_and_run(window, monkeypatch):
-    from agent.ui import DESCRIBE, PLAN, RUN
-    w, _ = window
+def test_the_window_walks_through_describe_and_run(window):
+    from PySide6.QtCore import QUrl
+
+    from agent.ui import DESCRIBE, RUN, STEP_NAMES
+    w, app = window
+    assert STEP_NAMES == ["Describe", "Run"]
     w.demo_deck.setChecked(False)
     w.load_button.menu().actions()[0].trigger()
+    _settle(w, app)
     assert w.pages.currentIndex() == DESCRIBE and w.reachable_steps() == {DESCRIBE}
-    assert not w.step_bar.buttons[PLAN].isEnabled() and not w.to_run.isEnabled()
+    assert not w.step_bar.buttons[RUN].isEnabled()
 
-    monkeypatch.setattr(w, "ask_person", lambda question: None)
     w.planned(_plan_result(ready=False))                         # a question: still describing
-    assert w.pages.currentIndex() == DESCRIBE and w.reachable_steps() == {DESCRIBE, PLAN}
+    assert w.pages.currentIndex() == DESCRIBE and w.reachable_steps() == {DESCRIBE}
 
-    w.planned(_plan_result(ready=True))                          # a plan ready: the Plan step opens by itself
-    assert w.pages.currentIndex() == PLAN and w.to_run.isEnabled() and w.step_bar.buttons[RUN].isEnabled()
-    w.to_run.click()
+    w.planned(_plan_result(ready=True))                          # a plan ready: in the chat, with Run this
+    assert w.pages.currentIndex() == DESCRIBE and w.step_bar.buttons[RUN].isEnabled()
+    w.reply.anchorClicked.emit(QUrl("run:0"))
     assert w.pages.currentIndex() == RUN and w.run_button.isEnabled()
     w.step_bar.buttons[DESCRIBE].click()                         # back: the step bar
     assert w.pages.currentIndex() == DESCRIBE
-    w.step_bar.buttons[PLAN].click()                             # the bar moves between steps too
-    assert w.pages.currentIndex() == PLAN
+    w.step_bar.buttons[RUN].click()
+    assert w.pages.currentIndex() == RUN
 
 
-def test_a_plan_on_the_demo_deck_can_be_reviewed_but_not_run(window):
-    from agent.ui import PLAN, RUN
+def test_a_plan_on_the_demo_deck_can_be_seen_but_not_run(window):
+    from agent.ui import RUN
     w, _ = window
     w.demo_deck.setChecked(True)
     try:
+        w.new_conversation()
         w.planned(_plan_result(ready=True))
-        assert w.pages.currentIndex() == PLAN and RUN not in w.reachable_steps() and not w.to_run.isEnabled()
-        assert "demo deck" in w.to_run.toolTip()
+        assert RUN not in w.reachable_steps() and 'href="run:' not in w.reply.toHtml()
+        assert 'href="details:0"' in w.reply.toHtml() and "demo deck" in w.state.text()
     finally:
         w.demo_deck.setChecked(False)
 
@@ -212,10 +356,10 @@ def test_routes_show_in_the_plan_and_the_route_fills_in_when_decided(window):
         {"id": "sort", "source": {"bay": 3, "wells": ["C1"]}, "steps": [{"op": "weigh"}],
          "routes": [{"when": {"value": "grams", "gt": 2}, "then": {"bay": 8}}], "destination": {"bay": 3}}]})
     report = validate(spec, DemoInventory())
-    w.tree.clear()
-    w._show_spec(spec)
+    from agent.ui import _spec_tree
     w._fill_table(spec, report)
-    process = w.tree.topLevelItem(0).child(0)
+    root = _spec_tree(spec)                                  # kept: Qt deletes an unreferenced item
+    process = root.child(0)
     assert process.text(0) == "sort: bay 3 wells C1 -> routes below, otherwise bay 3, same wells"
     assert process.child(1).text(0) == "route: if grams > 2.0: bay 8, same wells"
     assert w.table.item(0, 0).text() == "bay 3 C1 -> (a route decides)"
@@ -310,7 +454,6 @@ def test_a_new_address_replaces_a_check_still_waiting(window):
 def test_the_conversation_shows_requests_tool_calls_and_replies_in_order(window, monkeypatch):
     from agent import ui
     w, app = window
-    w.load_button.menu().actions()[0].trigger()
     w.feed.clear()
 
     class Planner(ui.PlanWorker):                                # two tool calls, then a plan ready
@@ -319,15 +462,14 @@ def test_the_conversation_shows_requests_tool_calls_and_replies_in_order(window,
             self.tool_call.emit('rack_inventory({"bay": 3})')
             self.planned.emit(_plan_result(ready=True))
     monkeypatch.setattr(ui, "PlanWorker", Planner)
-    w.plan()
-    w.planner.wait(2000)
-    app.processEvents()
+    w.load_button.menu().actions()[0].trigger()                  # an example: sent at once
+    _settle(w, app)
     text = w.reply.toPlainText()
-    order = [text.index(s) for s in ("You: Heat the first four", "Claude calls describe_cell({})",
-                                     'Claude calls rack_inventory({"bay": 3})', "Claude: Planned.")]
+    order = [text.index(s) for s in ("Heat the first four", "Claude calls describe_cell({})",
+                                     'Claude calls rack_inventory({"bay": 3})', "Planned.")]
     assert order == sorted(order) and "planning ..." not in text
     assert w.feed.toPlainText() == ""                            # Claude's activity stays out of the Run feed
-    w.load_button.menu().actions()[0].trigger()                  # a new request: a new conversation
+    w.new_button.click()                                         # a new conversation
     assert w.reply.toPlainText() == "" and w.activity == []
 
 
@@ -357,17 +499,40 @@ def test_the_gear_is_a_plain_symbol_that_opens_the_settings_on_a_click(window, m
     assert opened == [w.settings]
 
 
-def test_the_plan_step_says_in_plain_words_what_will_happen_above_the_tree(window):
+def test_a_confirmed_plan_shows_green_in_the_conversation(window):
     w, _ = window
-    result = _plan_result(ready=True)
-    result.reply = "Row C of bay 3 will be **scanned**, then put in the same wells of bay 8."
-    w.planned(result)
-    assert w.plan_text.text() == result.reply and w.tree.topLevelItemCount() >= 1
-    layout = w.plan_text.parentWidget().layout()
-    assert layout.indexOf(w.plan_text) < layout.indexOf(w.tree)              # words first, structure below
-    result.reply = ""
-    w.tree.clear()
-    w.planned(result)
-    assert w.plan_text.text() == result.spec.summary                         # no reply: the spec's summary
-    w.load_button.menu().actions()[0].trigger()
-    assert w.plan_text.text() == ""
+    w.new_conversation()
+    w.planned(QUESTION)
+    w.planned(_plan_result(ready=True))
+    assert [kind for kind, _ in w.activity] == ["claude", "plan"]
+    html = w.reply.toHtml()
+    from PySide6.QtGui import QColor
+    from agent.ui import _mix
+    green = _mix(w.reply.palette().base().color(), QColor("#2e7d32"), 0.25).name()
+    assert green in html
+    w.activity = w.activity[:-1]                                         # the question alone: no green
+    w._show_conversation()
+    assert green not in w.reply.toHtml()
+
+
+def test_run_this_under_a_confirmed_plan_goes_to_the_run_step_with_that_plan(window):
+    from PySide6.QtCore import QUrl
+
+    from agent.ui import RUN
+    w, _ = window
+    w.demo_deck.setChecked(False)
+    w.new_conversation()
+    first, second = _plan_result(ready=True), _plan_result(ready=True)
+    w.planned(first)
+    w.planned(second)                                                    # refined: a second confirmed plan
+    assert w.reply.toHtml().count('href="run:') == 2
+    w.reply.anchorClicked.emit(QUrl("run:0"))                            # the earlier one
+    assert w.pages.currentIndex() == RUN and w.result is first and w.run_button.isEnabled()
+    w.reply.anchorClicked.emit(QUrl("run:1"))
+    assert w.result is second
+    w.demo_deck.setChecked(True)                                         # a demo-deck plan cannot run
+    try:
+        w._show_conversation()
+        assert 'href="run:' not in w.reply.toHtml()
+    finally:
+        w.demo_deck.setChecked(False)

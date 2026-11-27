@@ -16,8 +16,8 @@ Built step by step:
 | 1 | Planner: system prompt + tools + the SDK's tool runner -> `WorkflowSpec` | done |
 | 2 | Compiler: `WorkflowSpec` -> Orca workflow built at runtime, with per-vial rules | done |
 | 3 | Validator: the spec against the live deck, errors Claude can fix | done |
-| 4 | Approval and execution on the simulator (`--run`, the window's Run step) | done |
-| 5 | Qt window: request, plan, questions, run, status, stop | done |
+| 4 | Approval and execution on the simulator (the window's Run step) | done |
+| 5 | Qt window: chat with Claude, the confirmed plan, run, status, stop | done |
 | 6 | Evals: the example requests run as a set, to measure prompt and model changes | next |
 
 | File | What it does |
@@ -69,8 +69,8 @@ tests something measured before it. While the plan runs, each vial's thread wait
 have finished (an event the previous action emits), then decides in plain code, before the vial moves: a vial
 that skips the heat never goes to the heater. The same goes for where a vial ends up: *routes* on a process ("over
 1 g to bay 8, otherwise back to its own well") are decided once its steps are done, and the vial is parked in the
-chosen well; the thread may end in any of them (Orca takes a list of end candidates). Growing what the agent can express means adding a test or an
-outcome in code, once, for every plan after it.
+chosen well; the thread may end in any of them (Orca takes a list of end candidates). Growing what the agent can
+express means adding a test or an outcome in code, once, for every plan after it.
 
 **Vials go where the person says.** A destination is a bay (the source bay too) and the same wells, other rows,
 other columns or chosen wells, paired with the source in order. A destination well may hold a vial now if the
@@ -83,19 +83,22 @@ cycle, and that vial parks there (`orca.park`) before its steps. Without enough 
 to Claude with the cycles named.
 
 **The compiler is plain code** (`compiler.py`): the spec's bays and wells become the Orca topology, each vial a
-thread from its source well to its destination well, each step an action at its instrument.
-When a plan heats to
-more than one temperature, the heater cools to the lowest one before the next vial goes in, and it is switched
-off when the run ends.
+thread from its source well to its destination well, each step an action at its instrument. When a plan heats
+to more than one temperature, the heater cools to the lowest one before the next vial goes in, and it is
+switched off when the run ends.
 
 **A plan runs only once Claude marks it ready.** An accepted spec is not yet a plan to run: Claude calls
 `mark_plan_ready` when the spec does what the person asked and nothing is left for them to decide. Only then
-does the window offer **Run**. An accepted spec that is not marked ready means
-Claude wants an answer first, and the window asks it in the popup; a new submission clears the mark.
+does the window offer **Run this**. An accepted spec that is not marked ready means Claude wants an answer
+first: it asks in the conversation, and the next message answers; a new submission clears the mark.
 
 **Claude may ask instead of planning.** When something is missing (no temperature given) or the cell cannot
-do what was asked, Claude replies without a spec. The window shows the reply in a popup with an answer box:
-OK continues the same conversation (Claude sees every earlier turn and plans again), Abort stops planning.
+do what was asked, Claude replies without a spec. The reply shows in the window's conversation, and the next
+message continues the same conversation: Claude sees every earlier turn and plans again.
+
+**Claude stays on its job.** A message that is not about planning for the workcell (a general question, small
+talk) gets no tool calls and no answer, just a short light-hearted line of Claude's own pointing back to
+planning (example 15).
 
 **Check how the reply ended before trusting it** (`planner.py`): `refusal` (declined), `max_tokens` (cut off),
 or still `tool_use` after the iteration limit are errors, not plans.
@@ -120,16 +123,19 @@ make ctl      # the controller service (SIM_HOST=192.168.64.4 for the VM)
 make agent-ui # the window (or .venv-orca/bin/python -m agent.ui)
 ```
 
-**The window** walks through three steps, one page each, with a step bar on top (**1 Describe › 2 Plan › 3 Run**):
+**The window** has two steps, one page each, with a step bar on top (**1 Describe › 2 Run**):
 
-1. **Describe**: type a request or load an example, then **Start planning**. Claude's replies show in the
-   conversation below, in order with each tool call it makes (planning is the only time Claude is involved; the
-   Run step's feed is Orca's alone); a question comes up in a popup (OK answers and continues, Abort stops).
-2. **Plan**: opens by itself once Claude marks a plan ready: what will happen in Claude's own words, then the
-   plan details as a tree (steps, rules, routes), the job
-   size and the deck check. Not right? Click **Describe** in the step bar, change the request and plan again;
-   right: **Go to run**. The step bar switches between the steps at any time.
-3. **Run**: **Run on the cell** asks for approval, checks the deck once more and runs; Orca's phase, every vial's
+1. **Describe**: a chat with Claude. Type what you want in the message box at the bottom and **Send** (Enter;
+   Shift+Enter for a new line), or **pick from this list**: an example is sent at once, as a new conversation.
+   The conversation shows your messages, Claude's replies and each tool call it makes, in order (planning is the
+   only time Claude is involved; the Run step's feed is Orca's alone). When Claude asks something, answer with
+   the next message.
+   A confirmed plan shows in green: Claude's words, the job size and the deck check, with **Details** (the
+   plan's structure as a tree in a popup: processes, steps, rules, routes, transit wells) and **Run this**,
+   which goes to the Run step with that plan (an earlier one too, after refining). Not right? Another message
+   ("make it 50 C") refines it in the same conversation. **New conversation** starts again; it and the examples
+   work while Claude is still planning too (that answer is dropped when it comes).
+2. **Run**: **Run on the cell** asks for approval, checks the deck once more and runs; Orca's phase, every vial's
    status (code, grams, temperature, the rule or route that decided) and a feed of what Orca does. After a
    completed run, **Run again** runs the same plan once more (a swap swaps back); the deck is checked first, so a
    plan that no longer fits is refused with the reason. **Stop** uses Orca's operator stop and switches the heater
@@ -140,7 +146,7 @@ such a plan can be reviewed but not run). The pill next to it shows every few se
 answers: green connected, amber with a fault latched, red not connected, grey demo deck.
 
 **Example requests** live as text files in [`examples/agent_requests/`](../../examples/agent_requests/):
-**pick from this list** in the window loads one. Each says whether a plan should come back (`# expect: plan` or
+**pick from this list** in the window sends one. Each says whether a plan should come back (`# expect: plan` or
 `# expect: no plan`). Edit them or add your own.
 
 Planning calls the API and costs a little; running a plan does not. The tests (`tests/agent/`) replace the API

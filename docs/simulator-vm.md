@@ -44,13 +44,13 @@ Setup scripts and steps: `ros2/vm/README.md`.
   controller's deck file (`src/controller/decks/workcell.json`). Real hardware has no admin port, so the
   controller treats it as optional.
 
-## RViz scene (to build)
+## RViz scene
 | Piece | ROS | Source of truth |
 |---|---|---|
 | Arm: base, link 1, link 2, Z quill, gripper | URDF (simple primitive shapes) + `robot_state_publisher` | `/joint_states` from arm pose (already published) |
 | Gripper open/closed | joint in URDF | `gripper_closed` |
 | Deck, 8 rack bays, racks (present/absent), barcode labels | `MarkerArray` | world racks |
-| Vials in wells, in the gripper, on the balance pan; heated vials a warmer colour | `MarkerArray` | world vials |
+| Vials in wells, in the gripper, on the balance pan; cap colours; heated vials a warmer colour | `MarkerArray` | world vials |
 | Balance, scanner well, heater well; heater glow and live temperature label, scan beam while reading | `MarkerArray` | device state |
 | Arm mode / collision / last error as text over the arm | text marker | arm feedback |
 

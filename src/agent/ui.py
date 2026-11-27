@@ -1,15 +1,15 @@
-"""The agent's window: type or load a request, let Claude plan it, check it, run it on the cell, watch it, stop it.
+"""The agent's window: plan with Claude in a chat, run the plan on the cell, watch it, stop it.
 
     .venv-orca/bin/python -m agent.ui
 
-Three steps, one page each, with a step bar on top:
+Two steps, one page each, with a step bar on top:
 
-  1 Describe  type what should happen, or load one of examples/agent_requests/, then Start planning: Claude
-              plans against the deck (the live controller, or the demo deck); its replies show in the
-              conversation, and a question comes up in a popup
-  2 Plan      the plan as a tree, the validator's findings and the size of the job; Describe in the step bar if
-              it is not right, Go to run if it is (the step bar switches between steps at any time)
-  3 Run       asks for approval, checks the deck once more, then compiles the plan and runs it through Orca and
+  1 Describe  a chat with Claude: say what should happen (or pick one of examples/agent_requests/) and Send.
+              Claude plans against the deck (the live controller, or the demo deck); its replies, questions and
+              tool calls show in the conversation, and an answer is just the next message. A plan ready to run
+              shows in green with the job size and the deck check, Details (the plan's structure, in a popup)
+              and Run this
+  2 Run       asks for approval, checks the deck once more, then compiles the plan and runs it through Orca and
               the controller; shown: Orca's phase for the run, every vial's status, and a feed of what Orca
               does. Stop is Orca's operator stop (pause, then a confirmed abort); the heater is switched off
   ⚙         the controller's host and port, and the demo deck; the pill next to it shows whether the
@@ -22,16 +22,18 @@ on the API, and the run needs its own asyncio event loop for Orca. They report b
 from __future__ import annotations
 
 import asyncio
+import html
 import json
+import re
 import logging
 import os
 import sys
 import time
 
-from PySide6.QtCore import QObject, Qt, QThread, QTimer, Signal
+from PySide6.QtCore import QEvent, QObject, Qt, QThread, QTimer, Signal
 from PySide6.QtNetwork import QTcpSocket
-from PySide6.QtGui import QAction, QFont
-from PySide6.QtWidgets import (QApplication, QCheckBox, QDialog, QDialogButtonBox, QGroupBox, QHBoxLayout,
+from PySide6.QtGui import QAction, QColor, QFont, QPalette, QTextDocument
+from PySide6.QtWidgets import (QApplication, QCheckBox, QDialog, QDialogButtonBox, QHBoxLayout,
                                QFormLayout, QHeaderView, QLabel, QLineEdit, QMainWindow, QMenu, QMessageBox,
                                QPlainTextEdit, QPushButton, QSizePolicy, QSpinBox, QStackedWidget,
                                QTableWidget, QTableWidgetItem,
@@ -46,8 +48,10 @@ from .validator import Report, validate
 
 COLUMNS = ["Vial", "Process", "Status", "Code", "Grams", "°C", "Rules"]
 APP_NAME = "Agentic lab automation"               # the title bar: the project's name, as in the README
-DESCRIBE, PLAN, RUN = range(3)                     # the steps, in order
-STEP_NAMES = ["Describe", "Plan", "Run"]
+DESCRIBE, RUN = range(2)                           # the steps, in order
+STEP_NAMES = ["Describe", "Run"]
+FIRST_MESSAGE_HINT = ("Message Claude, e.g. Scan and weigh row C of bay 3, then put the vials in the same wells of "
+                      "bay 8.  (Shift+Enter: new line)")
 
 
 # ------------------------------------------------------------------------------------------- workers
@@ -143,28 +147,6 @@ class RunWorker(QThread):
             await self.runtime.stop_execution(self.execution_id)
             await self.runtime.stop_execution(self.execution_id, confirm=True)
         asyncio.run_coroutine_threadsafe(stop_run(), self.loop)
-
-
-class QuestionDialog(QDialog):
-    """Claude's question, an answer box, and OK / Abort."""
-
-    def __init__(self, question: str, parent=None):
-        super().__init__(parent)
-        self.setWindowTitle("Claude asks")
-        self.resize(560, 420)
-        text = QTextBrowser()
-        text.setMarkdown(question)
-        self.box = QPlainTextEdit(placeholderText="Your answer")
-        buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Abort)
-        buttons.accepted.connect(self.accept)
-        buttons.rejected.connect(self.reject)
-        layout = QVBoxLayout(self)
-        for w in (text, QLabel("Answer to continue planning, or Abort to stop:"), self.box, buttons):
-            layout.addWidget(w)
-        self.box.setFocus()
-
-    def answer(self) -> str | None:
-        return self.box.toPlainText().strip() or None
 
 
 class ClickableLabel(QLabel):
@@ -326,62 +308,44 @@ class Window(QMainWindow):
         self.result = self.report = self.planner = self.runner = None
         self.conversation: list = []                    # the turns so far, to continue with an answer
         self.activity: list = []                        # what the conversation view shows, in order: (kind, text)
+        self.plans: list = []                           # each confirmed plan of the conversation, in order
+        self.abandoned: list = []                       # planners of conversations left while Claude was working
         self.rows: dict[str, int] = {}
 
-        # The window walks through three steps, one page at a time, with a step bar on top:
-        #   1 Describe: the request, the examples, the conversation with Claude, Start planning
-        #   2 Plan:     the plan to review; back to Describe if it is not right, on to Run if it is
-        #   3 Run:      run it on the cell, watch every vial, stop it
-        # A plan marked ready opens the Plan step by itself; the bar and the buttons go back and forth.
+        # The window walks through two steps, one page at a time, with a step bar on top:
+        #   1 Describe: a chat with Claude: the conversation, the message box, Send, the examples. A plan marked
+        #               ready shows in the chat in green, with Details (a popup) and Run this
+        #   2 Run:      run it on the cell, watch every vial, stop it
 
-        # step 1: describe
-        self.request = QPlainTextEdit(placeholderText="Tell the workcell in your own words, e.g. Scan and weigh row "
-                                                      "C of bay 3, then put the vials in the same wells of bay 8.")
-        self.request.setMaximumHeight(130)
+        # step 1: describe, as a chat: the conversation above, the message box and Send below. The conversation
+        # shows everything that happens while Claude plans, in order: your messages, each tool call as Claude makes
+        # it, Claude's replies. Planning is the only time Claude is involved; the Run step's feed is Orca's alone.
+        self.reply = QTextBrowser(openLinks=False)
+        self.reply.anchorClicked.connect(self._link)    # "Details" and "Run this" under a confirmed plan
+        self.reply.setPlaceholderText("Describe what you want to do, or pick an example. Claude plans with you here; "
+                                      "a plan ready to run shows here with Run this.")
+        self.message = QPlainTextEdit(placeholderText=FIRST_MESSAGE_HINT)   # cleared once the conversation starts
+        self.message.setFixedHeight(self.message.fontMetrics().lineSpacing() * 3 + 16)
+        self.message.installEventFilter(self)           # Enter sends
+        self.send_button = QPushButton("Send", clicked=self.send)
+        self.send_button.setDefault(True)
         self.load_button = QPushButton("pick from this list")
         self.load_button.setMenu(self._examples_menu())
-        self.plan_button = QPushButton("Start planning", clicked=self.plan)
-        self.plan_button.setDefault(True)
+        self.new_button = QPushButton("New conversation", flat=True, clicked=lambda: self.new_conversation())
+        # one row under the message box: the examples and New conversation on the left, Send on the right
+        buttons_row = QHBoxLayout()
+        buttons_row.addWidget(QLabel("Type in what you want, or"))
+        for button in (self.load_button, self.new_button):
+            buttons_row.addWidget(button)
+        buttons_row.addStretch()
+        buttons_row.addWidget(self.send_button)
         # where the controller is and the demo deck: behind the gear in the header
         self.settings = SettingsDialog(self)
         self.demo_deck = self.settings.demo_deck
-        # "Describe what you want to do, or [pick from this list]" above the request; Start planning below it
-        ask = QLabel("<b>Describe what you want to do</b>, or")
-        ask.setStyleSheet("font-size: 13pt")
-        prompt_row = QHBoxLayout()
-        prompt_row.addWidget(ask)
-        prompt_row.addWidget(self.load_button)
-        prompt_row.addStretch()
-        row = QHBoxLayout()
-        row.addStretch()
-        row.addWidget(self.plan_button)
-        self.reply = QTextBrowser()                     # the conversation with Claude
-        self.reply.setPlaceholderText("Claude's replies appear here. When Claude has a question, it asks it in a "
-                                      "popup; a plan ready for review opens the Plan step.")
-        # The conversation shows everything that happens while Claude plans, in order: the request, each tool
-        # call as Claude makes it, Claude's reply, an answer, and so on. Planning is the only time Claude is
-        # involved, so this is its whole activity; the Run step's feed is Orca's alone.
-        describe_page = self._page(self._box("", prompt_row, self.request, row),
-                                   self._box("Conversation with Claude", self.reply))
-        describe_page.layout().setStretch(1, 1)         # extra height goes to the conversation
+        describe_page = self._page(self.reply, self.message, buttons_row)
+        describe_page.layout().setStretch(0, 1)         # extra height goes to the conversation
 
-        # step 2: plan
-        # in plain words first (Claude's own description of the plan), then the plan details as a tree
-        self.plan_text = QLabel(wordWrap=True, textFormat=Qt.MarkdownText)
-        self.plan_text.setTextInteractionFlags(Qt.TextSelectableByMouse)
-        self.plan_text.setStyleSheet("background: palette(base); border: 1px solid palette(mid); border-radius: 6px; "
-                                     "padding: 8px; font-size: 13pt")
-        self.tree = QTreeWidget(headerHidden=True)
-        self.findings = QLabel(wordWrap=True)
-        self.to_run = QPushButton("Go to run  ▶", enabled=False, clicked=lambda: self.go_to(RUN))
-        self.to_run.setDefault(True)
-        plan_buttons = QHBoxLayout()                    # top left, like Run on the cell; back: the step bar
-        plan_buttons.addWidget(self.to_run)
-        plan_buttons.addStretch()
-        plan_page = self._page(self._box("The plan", plan_buttons, self._caption("What will happen"), self.plan_text,
-                                         self._caption("Plan details"), self.tree, self.findings))
-
-        # step 3: run
+        # step 2: run
         self.run_button = QPushButton("Run on the cell", enabled=False, clicked=self.run)
         self.stop_button = QPushButton("Stop", enabled=False, clicked=self.stop)
         # the run clock: elapsed time, vials at their destination, throughput (counted from Orca's start)
@@ -409,10 +373,11 @@ class Window(QMainWindow):
         self.table.horizontalHeader().setStretchLastSection(True)
         self.feed = QPlainTextEdit(readOnly=True, maximumBlockCount=3000)
         self.feed.setFont(QFont("Menlo", 11))
-        run_page = self._page(self._box("Run on the cell", buttons, self.table, self.feed))
+        run_page = self._page(buttons, self.table, self.feed)     # no frame, like Describe
+        run_page.layout().setStretch(1, 1)
 
         self.pages = QStackedWidget()
-        for page in (describe_page, plan_page, run_page):
+        for page in (describe_page, run_page):
             self.pages.addWidget(page)
         self.step_bar = StepBar(STEP_NAMES, self.go_to)
 
@@ -448,13 +413,6 @@ class Window(QMainWindow):
         self.check_connection()
 
     # ---------------------------------------------------------------- helpers
-    def _box(self, title: str, *parts) -> QGroupBox:
-        box, layout = QGroupBox(title), QVBoxLayout()
-        for part in parts:
-            (layout.addLayout if isinstance(part, QHBoxLayout) else layout.addWidget)(part)
-        box.setLayout(layout)
-        return box
-
     def show_centered(self, dialog: QDialog) -> int:
         """Show a dialog or message box modal, centred on the window. The platform places a dialog when it
         appears (macOS: the middle of the screen), so it is centred again just after it is shown."""
@@ -467,11 +425,6 @@ class Window(QMainWindow):
         QTimer.singleShot(0, centre)                    # runs inside exec(), once the dialog is on screen
         return dialog.exec()
 
-    def _caption(self, text: str) -> QLabel:
-        caption = QLabel(text)
-        caption.setStyleSheet("color: gray; font-weight: 600")
-        return caption
-
     def _page(self, *parts) -> QWidget:
         page, layout = QWidget(), QVBoxLayout()
         layout.setContentsMargins(0, 0, 0, 0)
@@ -482,11 +435,9 @@ class Window(QMainWindow):
 
     # ---------------------------------------------------------------- the steps
     def reachable_steps(self) -> set:
-        """Describe always; Plan once there is a plan to look at; Run once it is ready to run on the cell (or
-        while a run is going, so it can be watched)."""
+        """Describe always; Run once a plan is ready to run on the cell (or while a run is going, so it can be
+        watched)."""
         steps = {DESCRIBE}
-        if self.result is not None and self.result.spec is not None:
-            steps.add(PLAN)
         if self.result is not None and self.result.ready and not self.demo_deck.isChecked():
             steps.add(RUN)
         if self.runner is not None and (self.runner.isRunning() or self.rows):
@@ -507,10 +458,6 @@ class Window(QMainWindow):
         if self.pages.currentIndex() not in reachable:
             self.pages.setCurrentIndex(DESCRIBE)
         self.step_bar.show_steps(self.pages.currentIndex(), reachable)
-        self.to_run.setEnabled(RUN in reachable)
-        self.to_run.setToolTip("" if RUN in reachable else
-                               "Planned against the demo deck: open ⚙, connect a controller and plan again to run"
-                               if self.demo_deck.isChecked() else "")
         running = self.runner is not None and self.runner.isRunning()
         self.run_button.setEnabled(RUN in reachable and self.result is not None and self.result.ready and not running)
 
@@ -519,7 +466,7 @@ class Window(QMainWindow):
         for example in all_examples():
             action = QAction(f"{example.name}   ({'plan' if example.expect_plan else 'no plan'} expected)", menu)
             action.setToolTip(example.notes)
-            action.triggered.connect(lambda _=False, e=example: self.load_request(e.request))
+            action.triggered.connect(lambda _=False, e=example: self.send_example(e.request))
             menu.addAction(action)
         menu.setToolTipsVisible(True)
         return menu
@@ -559,16 +506,26 @@ class Window(QMainWindow):
     def _inventory(self):
         return DemoInventory() if self.demo_deck.isChecked() else ControllerInventory(*self._address())
 
-    def load_request(self, text: str) -> None:
-        """A new request (an example loaded): forget the previous conversation and plan, and clear their views,
-        back on the Describe step. A run still going keeps its Run step."""
-        self.request.setPlainText(text)
+    def send_example(self, request: str) -> None:
+        """An example picked from the list: sent at once, as a new conversation."""
+        self.new_conversation(request)
+        self.send()
+
+    def new_conversation(self, text: str = "") -> None:
+        """Start again (New conversation, or an example picked): forget the conversation and the plan, and clear
+        their views, back on the Describe step. Claude may still be working on the old conversation: its answer
+        is dropped when it comes (the API call cannot be taken back). A run still going keeps its Run step."""
+        if self.planning():
+            self.abandoned.append(self.planner)         # kept until it ends: Qt must not delete a running thread
+        self.abandoned = [p for p in self.abandoned if p.isRunning()]
+        self.planner = None
+        self.message.setPlainText(text)
+        self.message.setFocus()
+        self._chat_buttons(not self.planning())
         self.conversation, self.result, self.report = [], None, None
         self.reply.clear()
-        self.activity = []
-        self.tree.clear()
-        self.plan_text.clear()
-        self.findings.clear()
+        self.activity, self.plans = [], []
+        self.message.setPlaceholderText(FIRST_MESSAGE_HINT)
         if self.runner is None or not self.runner.isRunning():
             self.table.setRowCount(0)
             self.rows = {}
@@ -586,21 +543,39 @@ class Window(QMainWindow):
         self.state.setToolTip(text)                     # the whole message, when the status bar cuts it
 
     # ---------------------------------------------------------------- plan
-    def plan(self) -> None:
-        """Plan the request box's text as a new conversation."""
-        request = self.request.toPlainText().strip()
-        if request:
-            self.conversation, self.activity = [], []   # a new plan (an answer continues the same one)
-            self._ask(request)
+    def eventFilter(self, obj, event) -> bool:
+        """Enter in the message box sends it; Shift+Enter starts a new line."""
+        if (obj is self.message and event.type() == QEvent.KeyPress and event.key() in (Qt.Key_Return, Qt.Key_Enter)
+                and not event.modifiers() & Qt.ShiftModifier):
+            self.send()
+            return True
+        return super().eventFilter(obj, event)
+
+    def send(self) -> None:
+        """Send the message box's text: it continues the conversation, whether Claude asked something or a plan
+        is ready already (then it refines that plan)."""
+        text = self.message.toPlainText().strip()
+        if not text or self.planning():
+            return
+        self.message.clear()
+        self._ask(text)
+
+    def planning(self) -> bool:
+        return self.planner is not None and self.planner.isRunning()
+
+    def _chat_buttons(self, enabled: bool) -> None:
+        """Send waits while Claude is planning; an example or New conversation starts again at any time."""
+        self.send_button.setEnabled(enabled)
+
+    def _from_abandoned(self) -> bool:
+        """A signal from the planner of a conversation that was left: ignored."""
+        return self.sender() is not None and self.sender() in self.abandoned
 
     def _ask(self, text: str) -> None:
         self.result = self.report = None
         self.activity.append(("you", text))
         self._show_conversation(planning=True)
-        self.tree.clear()
-        self.plan_text.clear()
-        self.findings.setText("<i>Claude is planning ...</i>")
-        self.plan_button.setEnabled(False)
+        self._chat_buttons(False)
         self.set_state("planning")
         self.pages.setCurrentIndex(DESCRIBE)            # the conversation is where planning shows
         self.update_steps()
@@ -611,103 +586,91 @@ class Window(QMainWindow):
         self.planner.start()
 
     def tool_called(self, call: str) -> None:
+        if self._from_abandoned():
+            return
         self.activity.append(("tool", call))
         self._show_conversation(planning=True)
 
     def planning_failed(self, message: str) -> None:
+        if self._from_abandoned():
+            return
         self.activity.append(("failed", message))
         self._show_conversation()
-        self.findings.setText("Planning failed: see the conversation.")
-        self.plan_button.setEnabled(True)
+        self._chat_buttons(True)
         self.set_state("idle")
         self.update_steps()
 
     def planned(self, result) -> None:
+        if self._from_abandoned():
+            return
         self.result, self.report, self.conversation = result, result.report, result.conversation
-        self.activity.append(("claude", result.reply))
+        self.activity.append(("plan" if result.ready else "claude", result.reply))   # "plan": a confirmed plan
+        if result.ready:
+            self.plans.append(result)
         self._show_conversation()
-        self.plan_button.setEnabled(True)
-        self.findings.clear()
-        if result.spec is not None:                     # shown even when not ready, so the question has context
-            self._show_spec(result.spec)
-            self.plan_text.setText(result.reply or result.spec.summary)   # Claude's words; the summary if none
-            self._show_findings(result.spec, result.report)
+        self._chat_buttons(True)
         self.update_steps()
         if not result.ready:
             # Not ready to run: Claude asked something, explained what is in the way, or wants a choice confirmed
-            # before it marks its plan ready. Ask the person in a popup: an answer continues the same
-            # conversation, Abort ends the planning.
-            self.set_state("waiting for your answer")
-            answer = self.ask_person(result.reply)
-            if answer:
-                self._ask(answer)
-            else:
-                self.findings.setText(self.findings.text() + "<br>Planning stopped: no plan ready to run.")
-                self.set_state("planning stopped")
+            # before it marks its plan ready. The reply is in the conversation; the next message answers it.
+            self.set_state("Claude is waiting for your answer")
+            self.message.setFocus()
             return
         self.run_button.setText("Run on the cell")
-        self.set_state("planned: review the plan, then go to run" if not self.demo_deck.isChecked()
-                       else "planned (demo deck): review only")
-        self.go_to(PLAN)                                # a plan ready: review it on its own step
+        # The plan is in the conversation, in green: Claude's words, the job size and the deck check, with
+        # Details (its structure, in a popup) and Run this. The window stays on the chat.
+        self.set_state("planned: Run this to run it" if not self.demo_deck.isChecked()
+                       else "planned against the demo deck: connect a controller (⚙) and plan again to run it")
 
-    def ask_person(self, question: str) -> str | None:
-        """Claude's question in a popup with an answer box. Returns the answer, or None for Abort (or no answer)."""
-        dialog = QuestionDialog(question, self)
-        return dialog.answer() if self.show_centered(dialog) == QDialog.Accepted else None
+    def _link(self, url) -> None:
+        """The links under a confirmed plan: Details shows its structure in a popup; Run this takes that plan (an
+        earlier one too, after refining) to the Run step."""
+        if url.scheme() == "details":
+            self.show_centered(PlanDetails(self.plans[int(url.path())].spec, self))
+            return
+        if url.scheme() != "run" or self.planning():
+            return
+        if self.runner is None or not self.runner.isRunning():   # a run going keeps its plan; just show it
+            result = self.plans[int(url.path())]
+            if result is not self.result:
+                self.result, self.report = result, result.report
+                self.update_steps()
+        self.go_to(RUN)
 
     def _show_conversation(self, planning: bool = False) -> None:
-        """Everything so far, in order, newest last: your words, Claude's tool calls, its replies. `planning`:
-        Claude is still working on the last request."""
-        parts = []
+        """Everything so far, in order, newest last, as a chat: your messages on the right, Claude's replies on the
+        left, its tool calls as small grey lines between them. `planning`: Claude is still working."""
+        palette = self.reply.palette()
+        base, accent = palette.color(QPalette.Base), palette.color(QPalette.Highlight)
+        mine = _mix(base, accent, 0.25).name()                         # a light (or dark) tint of the accent
+        theirs = palette.color(QPalette.AlternateBase).name()
+        confirmed = _mix(base, QColor("#2e7d32"), 0.25).name()          # a plan marked ready: the pill's green, light
+        blocks, plans = [], 0
+        runnable = not self.demo_deck.isChecked()       # a demo-deck plan can be reviewed, not run
         for kind, text in self.activity:
-            if kind == "tool":
-                parts.append(f"*Claude calls* `{text}`")
-                continue
-            if parts:
-                parts.append("---")                     # a line before each new turn, not between tool calls
-            parts.append({"you": "**You:** ", "claude": "**Claude:** ", "failed": "**Planning failed:** "}[kind] + text)
+            if kind == "you":
+                blocks.append(_bubble(html.escape(text).replace("\n", "<br>"), mine, right=True))
+            elif kind == "plan":                        # a confirmed plan: green, its size, Details and Run this
+                result = self.plans[plans]
+                run = (f'&nbsp;&nbsp; <a href="run:{plans}" style="color: white; background-color: #2e7d32; '
+                       f'text-decoration: none; font-weight: 600">&nbsp; Run this ▶ &nbsp;</a>') if runnable else ""
+                links = f'<p align="right"><a href="details:{plans}">Details</a>{run}</p>'
+                job = f'<p style="font-size: small">{_job_html(result.spec, result.report)}</p>'
+                blocks.append(_bubble(_markdown_html(text) + job + links, confirmed, right=False))
+                plans += 1
+            elif kind == "claude":
+                blocks.append(_bubble(_markdown_html(text), theirs, right=False))
+            elif kind == "tool":
+                blocks.append(f'<p style="color: gray; font-size: small; margin: 2px 10px">Claude calls '
+                              f'<code>{html.escape(text)}</code></p>')
+            else:
+                blocks.append(f'<p style="color: #c62828; margin: 6px 10px"><b>Planning failed:</b> '
+                              f'{html.escape(text)}</p>')
         if planning:
-            parts.append("*Claude is planning ...*")
-        self.reply.setMarkdown("\n\n".join(parts))
+            blocks.append('<p style="color: gray; margin: 6px 10px"><i>Claude is planning ...</i></p>')
+        self.reply.setHtml("".join(blocks))
+        self.message.setPlaceholderText("" if self.activity else FIRST_MESSAGE_HINT)   # the hint only before it starts
         self.reply.verticalScrollBar().setValue(self.reply.verticalScrollBar().maximum())
-
-    def _show_spec(self, spec: WorkflowSpec) -> None:
-        root = QTreeWidgetItem([f"{spec.name}: {spec.summary}"])
-        for p in spec.processes:
-            where = "routes below, otherwise " if p.routes else ""
-            item = QTreeWidgetItem([f"{p.id}: bay {p.source.bay} {p.source.describe()} -> {where}{p.destination.describe()}"])
-            for step in p.steps:
-                values = ", ".join(f"{k} {v}" for k, v in step.model_dump(exclude={"op", "rules"}).items())
-                s = QTreeWidgetItem([f"{step.op}" + (f" ({values})" if values else "")])
-                for rule in step.rules:
-                    then = rule.then if rule.then == "skip" else rule.then.model_dump(exclude_none=True)
-                    s.addChild(QTreeWidgetItem([f"if {rule.when.describe()}: {then}"]))
-                item.addChild(s)
-            for route in p.routes:
-                item.addChild(QTreeWidgetItem([f"route: if {route.when.describe()}: {route.then.describe()}"]))
-            root.addChild(item)
-        if spec.transit:
-            root.addChild(QTreeWidgetItem(["transit wells (one vial of each swap waits there): "
-                                           + ", ".join(t.describe() for t in spec.transit)]))
-        self.tree.addTopLevelItem(root)
-        self.tree.expandAll()
-
-    def _show_findings(self, spec: WorkflowSpec, report: Report) -> None:
-        lines, moves, heater = [], 0, [0, 0]
-        for p in spec.processes:
-            n = len(report.vials.get(p.id, []))
-            heats = [s for s in p.steps if isinstance(s, Heat)]
-            optional = sum(1 for s in heats if any(r.then == "skip" for r in s.rules))
-            moves += n * (len(p.steps) + 1)
-            heater[0] += n * (len(heats) - optional)
-            heater[1] += n * len(heats)
-            lines.append(f"{p.id}: {n} vials, " + (f"{len(p.steps)} step(s)" if p.steps else "rack-to-rack move"))
-        moves += len(report.routes)                    # a vial going via a transit well moves once more
-        size = f"Job size: {sum(len(v) for v in report.vials.values())} vials, up to {moves} arm moves"
-        if heater[1]:
-            size += (f", {heater[0]}" + (f" to {heater[1]}" if heater[1] != heater[0] else "") + " heater visits")
-        checks = "<br>".join(f"⚠ {w}" for w in report.warnings) or "Deck check: no problems found."
-        self.findings.setText("<br>".join(lines) + f"<br><b>{size}</b><br>{checks}")
 
     # ---------------------------------------------------------------- run
     def run(self) -> None:
@@ -728,7 +691,7 @@ class Window(QMainWindow):
         self.feed.clear()
         self.say(f"approved: {spec.name} ({vials} vials)")
         self.run_button.setEnabled(False)
-        self.plan_button.setEnabled(False)
+        self.send_button.setEnabled(False)            # the plan stays as it is while it runs
         self.stop_button.setEnabled(True)
         self.runner = RunWorker(spec, report, host, port)
         self.run_started = self.run_finished = None
@@ -810,12 +773,89 @@ class Window(QMainWindow):
                         "or the gripper stay there", "failed": f"failed: {detail}"}[outcome])
         self.say(f"run {outcome}" + (f": {detail}" if detail else ""))
         self.stop_button.setEnabled(False)
-        self.plan_button.setEnabled(True)
+        self.send_button.setEnabled(True)
         self.update_steps()
         # The plan can run again (a swap undoes itself the second time): Run checks the deck again first and
         # refuses with the reason if the plan no longer fits, e.g. the source wells are now empty.
         self.run_button.setEnabled(self.result is not None and self.result.ready)
         self.run_button.setText("Run again" if outcome == "completed" else "Run on the cell")
+
+
+class PlanDetails(QDialog):
+    """A plan's structure, for whoever wants to see it: processes, steps, rules, routes and transit wells."""
+
+    def __init__(self, spec: WorkflowSpec, parent=None):
+        super().__init__(parent)
+        self.setWindowTitle(f"Details: {spec.name}")
+        self.resize(560, 420)
+        self.tree = QTreeWidget(headerHidden=True)
+        self.tree.addTopLevelItem(_spec_tree(spec))
+        self.tree.expandAll()
+        buttons = QDialogButtonBox(QDialogButtonBox.Close, rejected=self.reject)
+        layout = QVBoxLayout(self)
+        layout.addWidget(self.tree)
+        layout.addWidget(buttons)
+
+
+def _spec_tree(spec: WorkflowSpec) -> QTreeWidgetItem:
+    root = QTreeWidgetItem([f"{spec.name}: {spec.summary}"])
+    for p in spec.processes:
+        where = "routes below, otherwise " if p.routes else ""
+        item = QTreeWidgetItem([f"{p.id}: bay {p.source.bay} {p.source.describe()} -> {where}{p.destination.describe()}"])
+        for step in p.steps:
+            values = ", ".join(f"{k} {v}" for k, v in step.model_dump(exclude={"op", "rules"}).items())
+            s = QTreeWidgetItem([f"{step.op}" + (f" ({values})" if values else "")])
+            for rule in step.rules:
+                then = rule.then if rule.then == "skip" else rule.then.model_dump(exclude_none=True)
+                s.addChild(QTreeWidgetItem([f"if {rule.when.describe()}: {then}"]))
+            item.addChild(s)
+        for route in p.routes:
+            item.addChild(QTreeWidgetItem([f"route: if {route.when.describe()}: {route.then.describe()}"]))
+        root.addChild(item)
+    if spec.transit:
+        root.addChild(QTreeWidgetItem(["transit wells (one vial of each swap waits there): "
+                                       + ", ".join(t.describe() for t in spec.transit)]))
+    return root
+
+
+def _job_html(spec: WorkflowSpec, report: Report) -> str:
+    """The size of the job and the deck check, for the confirmed plan's reply."""
+    lines, moves, heater = [], 0, [0, 0]
+    for p in spec.processes:
+        n = len(report.vials.get(p.id, []))
+        heats = [s for s in p.steps if isinstance(s, Heat)]
+        optional = sum(1 for s in heats if any(r.then == "skip" for r in s.rules))
+        moves += n * (len(p.steps) + 1)
+        heater[0] += n * (len(heats) - optional)
+        heater[1] += n * len(heats)
+        lines.append(f"{html.escape(p.id)}: {n} vials, " + (f"{len(p.steps)} step(s)" if p.steps else "rack-to-rack move"))
+    moves += len(report.routes)                        # a vial going via a transit well moves once more
+    size = f"Job size: {sum(len(v) for v in report.vials.values())} vials, up to {moves} arm moves"
+    if heater[1]:
+        size += (f", {heater[0]}" + (f" to {heater[1]}" if heater[1] != heater[0] else "") + " heater visits")
+    checks = "<br>".join(f"⚠ {html.escape(w)}" for w in report.warnings) or "Deck check: no problems found."
+    return "<br>".join(lines) + f"<br><b>{size}</b><br>{checks}"
+
+
+def _mix(a: QColor, b: QColor, share: float) -> QColor:
+    return QColor(*(round(x + (y - x) * share) for x, y in zip(a.getRgb()[:3], b.getRgb()[:3])))
+
+
+def _markdown_html(text: str) -> str:
+    """Claude's Markdown as an HTML fragment (Qt's own Markdown reader), to sit inside a chat bubble."""
+    doc = QTextDocument()
+    doc.setMarkdown(text)
+    body = re.search(r"<body[^>]*>(.*)</body>", doc.toHtml(), re.S)
+    return body.group(1) if body else html.escape(text)
+
+
+def _bubble(inner: str, colour: str, right: bool) -> str:
+    """One chat message: a full-width row with the message in a coloured cell, pushed to the right (yours) or
+    left (Claude's) by an empty cell."""
+    cell = f'<td bgcolor="{colour}" style="padding: 8px">{inner}</td>'
+    gap = '<td width="18%"></td>'
+    return (f'<table width="100%" cellspacing="6" cellpadding="8"><tr>{gap + cell if right else cell + gap}'
+            f'</tr></table>')
 
 
 def _num(value, digits: int) -> str:

@@ -1,0 +1,4 @@
+# A general question, nothing to do with the workcell: Claude should not plan or call tools.
+# expect: no plan
+# Look for: no tool calls, no answer to the question; one short funny line saying it only plans workcell work.
+What is the capital of France?

@@ -6,7 +6,7 @@ This package holds everything that knows the cell:
   operations.py  labware operations (pick "3 A1", place "scanner", scan, weigh, heat)
   controller.py  the service: one owner of the hardware, one operation at a time, fault latch
   api.py         the service on the network (JSON lines on :8700)
-Rack jobs are not here: a workflow (Orca, from stage 2 on) composes them from these operations.
+Rack jobs are not here: an Orca workflow (compiled by the planning agent) composes them from these operations.
 The devices can be the simulator in `simulator` or real hardware with the same protocols.
 """
 

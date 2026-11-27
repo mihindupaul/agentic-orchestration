@@ -29,9 +29,10 @@ make orca-install                          # Orca, the controller, the agent and
 echo "ANTHROPIC_API_KEY=sk-ant-..." > .env # your key (git ignores .env)
 make sim-up sim-view                       # simulator + 3D view in your browser (first build: a few minutes)
 make ctl                                   # the controller; leave it running, and in a second terminal:
-make agent-ui                              # load an example, Start planning, then Run on the cell
+make agent-ui                              # pick an example, Send, then Run on the cell
 ```
-Between demo runs, `make sim-reset` puts the full rack back in bay 3 and empties the rest in under a second.
+Between demo runs, `make sim-reset` puts the demo deck back (full racks in bays 3 and 2, an empty one in bay 8) in
+under a second.
 More: `make test` runs the tests; [`src/agent/README.md`](src/agent/README.md) explains the agent;
 [`docs/orca-integration.md`](docs/orca-integration.md) how the cell appears in Orca, and lessons learned;
 [`ros2/vm/README.md`](ros2/vm/README.md) a full VM instead of Docker.
@@ -52,10 +53,10 @@ comparison can be run again on the simulator.
 The workflow layer is [Orca](https://github.com/Cheshire-Labs/orca) by [Cheshire Labs](https://cheshirelabs.io), a lab
 automation scheduler and workflow orchestrator, with its driver layer
 [cheshire-drivers](https://github.com/Cheshire-Labs/cheshire-drivers). The plug-in in `src/agent/scheduler` presents
-the workcell to Orca as an arm (a transporter) and three instruments (devices), and Orca workflows run live on the
-simulator through the controller: two workflows running together kept every instrument busy, 48 vials scanned,
-weighed or heated in 14.5 minutes. See [`docs/orca-integration.md`](docs/orca-integration.md) for how it fits
-together.
+the workcell to Orca as an arm (a transporter) and three instruments (devices). The agent's compiler turns each
+plan into an Orca workflow, one thread per vial, and Orca schedules every thread over the shared arm and
+instruments, live on the simulator through the controller. See
+[`docs/orca-integration.md`](docs/orca-integration.md) for how it fits together and what was learned on the way.
 
 Thanks to Cheshire Labs: Orca's reservation-based scheduling and clear driver interfaces made it possible to
 orchestrate this workcell without changing a line of Orca, and its source and examples were the guide for the
@@ -72,8 +73,10 @@ right: it checks the spec against the live deck, a person approves it, and a com
 thread per vial) that runs through the controller. The AI plans; it is not called while a plan runs. When something
 is missing, it asks instead of guessing.
 
-A small PySide6 window ties it together for demos: type or load a request, see the plan and the deck check,
-approve, then watch Orca's run state and every vial's status, and stop the run if needed. See
+A small PySide6 window ties it together for demos: chat with Claude about what should happen (or pick an
+example), see the confirmed plan with its job size and deck check, **Run this**, approve, then watch Orca's run
+state and every vial's status, and stop the run if needed. Off-topic questions get a light-hearted nudge back to
+planning. See
 [`src/agent/README.md`](src/agent/README.md) for how it works and why, and
 [`examples/agent_requests/`](examples/agent_requests/) for requests to try.
 
@@ -90,7 +93,8 @@ Tests cover the simulator, the deck file against the simulated cell, labware ope
 | `ros2/` | scene tested on the Mac; runs in the container (`ros2/docker`) or the UTM VM (`ros2/vm`) |
 
 ## Docs
-See `docs/architecture.md`, `docs/orca-integration.md`, `docs/assumptions.md` and `docs/provenance.md`.
+See `docs/architecture.md`, `docs/orca-integration.md`, `docs/simulator-vm.md`, `docs/assumptions.md` and
+`docs/provenance.md`.
 
 ## Possible improvements
 Directions this could grow in, kept here as a record of what the project does not do yet. None of them is
@@ -107,11 +111,9 @@ planned.
 4. **A time estimate before a run**, from operation timings measured on the simulator, shown with the job size.
 5. **Recovery after a stop.** A stopped run leaves a vial in an instrument or the gripper; a recovery step would
    find it and put it back.
-6. **A richer rule vocabulary**: comparing a vial with the others (above the row average), and destinations a
-   rule decides per vial (heavy vials to another rack).
-7. **Refining an accepted plan** in the window ("make it 50 C"): today **Start planning** begins a new
-   conversation.
-8. **An MCP server** over the agent's tools, so other AI clients could plan for the cell too.
+6. **A richer rule vocabulary**: comparing a vial with the others (above the row average), or tests that combine
+   two values.
+7. **An MCP server** over the agent's tools, so other AI clients could plan for the cell too.
 
 ## Acknowledgements
 Orca builds on the work of the [PyLabRobot](https://github.com/PyLabRobot/pylabrobot) community. The 3D view uses
